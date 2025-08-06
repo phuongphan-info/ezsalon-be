@@ -1,4 +1,4 @@
-FROM node:20.16.0-bullseye
+FROM node:22.9.0-bullseye
 
 WORKDIR /usr/src/app
 
@@ -9,8 +9,8 @@ RUN apt-get clean && apt-get update \
   vim \
   gettext-base
 
-# Install global packages
-RUN npm install -g pm2 @nestjs/cli
+# Upgrade npm to 11.5.2 and install global packages
+RUN npm install -g npm@11.5.2 pm2 @nestjs/cli
 
 # Copy package files
 COPY package*.json ./

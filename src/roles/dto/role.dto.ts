@@ -23,13 +23,14 @@ export class CreateRoleDto {
   color?: string;
 
   @ApiProperty({
-    description: 'Permission IDs to assign to this role',
+    description: 'Permission names to assign to this role',
     type: [String],
     required: false,
+    example: ['users:create', 'users:read', 'roles:create']
   })
   @IsArray()
   @IsOptional()
-  permissionIds?: string[];
+  permissionNames?: string[];
 }
 
 export class UpdateRoleDto {
@@ -49,27 +50,23 @@ export class UpdateRoleDto {
   color?: string;
 
   @ApiProperty({
-    description: 'Role status',
-    enum: ['ACTIVED', 'INACTIVED', 'PENDING'],
-    required: false,
-  })
-  @IsString()
-  @IsOptional()
-  status?: string;
-
-  @ApiProperty({
-    description: 'Permission IDs to assign to this role',
+    description: 'Permission names to assign to this role',
     type: [String],
     required: false,
+    example: ['users:create', 'users:read', 'roles:create']
   })
   @IsArray()
   @IsOptional()
-  permissionIds?: string[];
+  permissionNames?: string[];
 }
 
 export class AssignPermissionsDto {
-  @ApiProperty({ description: 'Permission IDs to assign to the role', type: [String] })
+  @ApiProperty({
+    description: 'Permission names to assign to the role',
+    type: [String],
+    example: ['users:create', 'users:read', 'roles:create']
+  })
   @IsArray()
   @IsNotEmpty()
-  permissionIds: string[];
+  permissionNames: string[];
 }
