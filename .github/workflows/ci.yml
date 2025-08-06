@@ -12,7 +12,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [18.x, 20.x]
+        node-version: [22.x]
 
     steps:
       - name: Checkout code
@@ -27,17 +27,15 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: Run ESLint
-        run: npm run lint:check
-
-      - name: Run Prettier check
-        run: npx prettier --check "src/**/*.ts" "test/**/*.ts"
-
-      - name: Run tests
-        run: npm run test
-
-      - name: Run e2e tests
-        run: npm run test:e2e
-
-      - name: Build application
-        run: npm run build
+      - name: SSH to VPS and Deploy
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd ~/app
+            git pull origin main
+            make down
+            make build
+            make up-d

@@ -13,43 +13,11 @@ export const seedUsers = [
     status: 'ACTIVED',
   },
   {
-    email: 'owner@ezsalon.com',
-    name: 'Salon Owner',
-    password: 'owner123',
-    roleName: 'owner',
+    email: 'moderator@ezsalon.com',
+    name: 'Moderator',
+    password: 'moderator123',
+    roleName: 'moderator',
     phone: '+1234567891',
-    status: 'ACTIVED',
-  },
-  {
-    email: 'manager@ezsalon.com',
-    name: 'Salon Manager',
-    password: 'manager123',
-    roleName: 'manager',
-    phone: '+1234567892',
-    status: 'ACTIVED',
-  },
-  {
-    email: 'staff1@ezsalon.com',
-    name: 'Sarah Johnson',
-    password: 'staff123',
-    roleName: 'staff',
-    phone: '+1234567893',
-    status: 'ACTIVED',
-  },
-  {
-    email: 'staff2@ezsalon.com',
-    name: 'Michael Chen',
-    password: 'staff123',
-    roleName: 'staff',
-    phone: '+1234567894',
-    status: 'ACTIVED',
-  },
-  {
-    email: 'staff3@ezsalon.com',
-    name: 'Emily Rodriguez',
-    password: 'staff123',
-    roleName: 'staff',
-    phone: '+1234567895',
     status: 'ACTIVED',
   },
 ];
@@ -91,7 +59,7 @@ async function seedUsersOnly(shouldInitializeDb = true, shouldCloseDb = true) {
 
     for (const userData of seedUsers) {
       // Check if user already exists
-      let existingUser = await userRepository.findOne({
+      const existingUser = await userRepository.findOne({
         where: { email: userData.email },
         relations: ['role'],
       });

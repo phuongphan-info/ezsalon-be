@@ -9,7 +9,9 @@ import {
 } from 'typeorm';
 import { Role } from './role.entity';
 
-@Entity('permissions')
+export const PERMISSION_TABLE_NAME = 'permissions';
+
+@Entity(PERMISSION_TABLE_NAME)
 export class Permission {
   @ApiProperty({ description: 'Permission ID' })
   @PrimaryGeneratedColumn('uuid')
@@ -31,12 +33,17 @@ export class Permission {
   @Column({ name: 'resource_type' })
   resource!: string;
 
-  @ApiProperty({ description: 'Permission action (e.g., create, read, update, delete)' })
+  @ApiProperty({
+    description: 'Permission action (e.g., create, read, update, delete)',
+  })
   @Column({ name: 'action_type' })
   action!: string;
 
-  @ApiProperty({ description: 'Roles with this permission', type: () => [Role] })
-  @ManyToMany(() => Role, role => role.permissions)
+  @ApiProperty({
+    description: 'Roles with this permission',
+    type: () => [Role],
+  })
+  @ManyToMany(() => Role, (role) => role.permissions)
   roles!: Role[];
 
   @ApiProperty({ description: 'Creation date' })

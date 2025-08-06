@@ -8,39 +8,51 @@ export class PermissionHelper {
   /**
    * Check if user has a specific permission
    */
-  async hasPermission(userId: string, permission: string): Promise<boolean> {
-    return await this.rolesService.hasPermission(userId, permission);
+  async hasPermission(userUuid: string, permission: string): Promise<boolean> {
+    return await this.rolesService.hasPermission(userUuid, permission);
   }
 
   /**
    * Check if user has any of the specified permissions
    */
-  async hasAnyPermission(userId: string, permissions: string[]): Promise<boolean> {
-    const userPermissions = await this.rolesService.getUserPermissions(userId);
-    const userPermissionNames = userPermissions.map(p => p.name);
+  async hasAnyPermission(
+    userUuid: string,
+    permissions: string[],
+  ): Promise<boolean> {
+    const userPermissions = await this.rolesService.getUserPermissions(userUuid);
+    const userPermissionNames = userPermissions.map((p) => p.name);
 
-    return permissions.some(permission => userPermissionNames.includes(permission));
+    return permissions.some((permission) =>
+      userPermissionNames.includes(permission),
+    );
   }
 
   /**
    * Check if user has all specified permissions
    */
-  async hasAllPermissions(userId: string, permissions: string[]): Promise<boolean> {
-    return await this.rolesService.hasPermissions(userId, permissions);
+  async hasAllPermissions(
+    userUuid: string,
+    permissions: string[],
+  ): Promise<boolean> {
+    return await this.rolesService.hasPermissions(userUuid, permissions);
   }
 
   /**
    * Get all permissions for a user
    */
-  async getUserPermissions(userId: string) {
-    return await this.rolesService.getUserPermissions(userId);
+  async getUserPermissions(userUuid: string) {
+    return await this.rolesService.getUserPermissions(userUuid);
   }
 
   /**
    * Check if user can perform action on resource
    */
-  async canPerform(userId: string, resource: string, action: string): Promise<boolean> {
+  async canPerform(
+    userUuid: string,
+    resource: string,
+    action: string,
+  ): Promise<boolean> {
     const permissionName = `${resource}:${action}`;
-    return await this.hasPermission(userId, permissionName);
+    return await this.hasPermission(userUuid, permissionName);
   }
 }

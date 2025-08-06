@@ -12,7 +12,16 @@ import {
 import { User } from '../../users/entities/user.entity';
 import { Permission } from './permission.entity';
 
-@Entity('roles')
+export const ROLE_TABLE_NAME = 'roles';
+
+export enum ROLE {
+  ADMIN = 'admin',
+  OWNER = 'owner',
+  MANAGER = 'manager',
+  STAFF = 'staff',
+}
+
+@Entity(ROLE_TABLE_NAME)
 export class Role {
   @ApiProperty({ description: 'Role ID' })
   @PrimaryGeneratedColumn('uuid')
@@ -35,18 +44,21 @@ export class Role {
   color: string;
 
   @ApiProperty({ description: 'Role permissions', type: () => [Permission] })
-  @ManyToMany(() => Permission, permission => permission.roles, {
+  @ManyToMany(() => Permission, (permission) => permission.roles, {
     cascade: true,
   })
   @JoinTable({
     name: 'role_permissions',
     joinColumn: { name: 'role_uuid', referencedColumnName: 'uuid' },
-    inverseJoinColumn: { name: 'permission_uuid', referencedColumnName: 'uuid' },
+    inverseJoinColumn: {
+      name: 'permission_uuid',
+      referencedColumnName: 'uuid',
+    },
   })
   permissions: Permission[];
 
   @ApiProperty({ description: 'Users with this role', type: () => [User] })
-  @OneToMany(() => User, user => user.role)
+  @OneToMany(() => User, (user) => user.role)
   users: User[];
 
   @ApiProperty({ description: 'Creation date' })
