@@ -15,17 +15,25 @@ export class PermissionHelper {
   /**
    * Check if user has any of the specified permissions
    */
-  async hasAnyPermission(userId: string, permissions: string[]): Promise<boolean> {
+  async hasAnyPermission(
+    userId: string,
+    permissions: string[],
+  ): Promise<boolean> {
     const userPermissions = await this.rolesService.getUserPermissions(userId);
-    const userPermissionNames = userPermissions.map(p => p.name);
+    const userPermissionNames = userPermissions.map((p) => p.name);
 
-    return permissions.some(permission => userPermissionNames.includes(permission));
+    return permissions.some((permission) =>
+      userPermissionNames.includes(permission),
+    );
   }
 
   /**
    * Check if user has all specified permissions
    */
-  async hasAllPermissions(userId: string, permissions: string[]): Promise<boolean> {
+  async hasAllPermissions(
+    userId: string,
+    permissions: string[],
+  ): Promise<boolean> {
     return await this.rolesService.hasPermissions(userId, permissions);
   }
 
@@ -39,7 +47,11 @@ export class PermissionHelper {
   /**
    * Check if user can perform action on resource
    */
-  async canPerform(userId: string, resource: string, action: string): Promise<boolean> {
+  async canPerform(
+    userId: string,
+    resource: string,
+    action: string,
+  ): Promise<boolean> {
     const permissionName = `${resource}:${action}`;
     return await this.hasPermission(userId, permissionName);
   }

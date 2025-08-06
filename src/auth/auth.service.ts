@@ -1,47 +1,67 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/auth.dto';
+import { CUSTOMER_STATUS } from '../customers/entities/customer.entity';
+import { CustomersService } from 'src/customers/customers.service';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private usersService: UsersService,
+    private customersService: CustomersService,
     private jwtService: JwtService,
   ) {}
 
   async login(loginDto: LoginDto) {
-    const user = await this.usersService.findByEmail(loginDto.email);
+    const customer = await this.customersService.findByEmail(loginDto.email);
 
-    if (!user) {
+    if (!customer) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const isPasswordValid = await this.usersService.validatePassword(
+    // Check if customer status is ACTIVED
+    if (customer.status !== CUSTOMER_STATUS.ACTIVED) {
+      throw new UnauthorizedException('Account is not active. Please contact support.');
+    }
+
+    const isPasswordValid = await this.customersService.validatePassword(
       loginDto.password,
-      user.password,
+      customer.password,
     );
 
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const payload = { email: user.email, sub: user.uuid };
+    const payload = { email: customer.email, sub: customer.uuid };
     return {
-      access_token: this.jwtService.sign(payload),
-      user: {
-        id: user.uuid,
-        email: user.email,
-        name: user.name,
-        role: user.role,
+      accessToken: this.jwtService.sign(payload),
+      customer: {
+        id: customer.uuid,
+        email: customer.email,
+        name: customer.name,
+      },
+    };
+  }
+
+  async socialLogin(customer: any) {
+    const payload = { email: customer.email, sub: customer.uuid };
+    return {
+      accessToken: this.jwtService.sign(payload),
+      customer: {
+        uuid: customer.uuid,
+        email: customer.email,
+        name: customer.name,
       },
     };
   }
 
   async validateUser(email: string, password: string) {
-    const user = await this.usersService.findByEmail(email);
-    if (user && (await this.usersService.validatePassword(password, user.password))) {
-      const { password: _, ...result } = user;
+    const customer = await this.customersService.findByEmail(email);
+    if (
+      customer &&
+      (await this.customersService.validatePassword(password, customer.password))
+    ) {
+      const { password: _, ...result } = customer;
       return result;
     }
     return null;

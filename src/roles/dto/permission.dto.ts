@@ -22,7 +22,9 @@ export class CreatePermissionDto {
   @IsNotEmpty()
   resource: string;
 
-  @ApiProperty({ description: 'Permission action (e.g., create, read, update, delete)' })
+  @ApiProperty({
+    description: 'Permission action (e.g., create, read, update, delete)',
+  })
   @IsString()
   @IsNotEmpty()
   action: string;
@@ -48,13 +50,4 @@ export class UpdatePermissionDto {
   @IsString()
   @IsOptional()
   action?: string;
-
-  @ApiProperty({
-    description: 'Permission status',
-    enum: ['ACTIVED', 'INACTIVED', 'PENDING'],
-    required: false,
-  })
-  @IsString()
-  @IsOptional()
-  status?: string;
 }

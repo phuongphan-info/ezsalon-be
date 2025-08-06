@@ -18,12 +18,17 @@ export const RequireAnyPermission = (...permissions: string[]) =>
 /**
  * Shorthand for common resource-action permissions
  */
-export const CanCreate = (resource: string) => RequirePermissions(`${resource}:create`);
-export const CanRead = (resource: string) => RequirePermissions(`${resource}:read`);
-export const CanUpdate = (resource: string) => RequirePermissions(`${resource}:update`);
-export const CanDelete = (resource: string) => RequirePermissions(`${resource}:delete`);
+export const CanCreate = (resource: string) =>
+  RequirePermissions(`${resource}:create`);
+export const CanRead = (resource: string) =>
+  RequirePermissions(`${resource}:read`);
+export const CanUpdate = (resource: string) =>
+  RequirePermissions(`${resource}:update`);
+export const CanDelete = (resource: string) =>
+  RequirePermissions(`${resource}:delete`);
 
 /**
  * Admin only access
  */
-export const AdminOnly = () => RequirePermissions('users:create', 'users:delete', 'roles:create');
+export const AdminOnly = () =>
+  RequirePermissions('users:create', 'users:delete', 'roles:create');

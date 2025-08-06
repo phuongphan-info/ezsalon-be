@@ -1,6 +1,9 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { PERMISSIONS_KEY, PERMISSIONS_OR_KEY } from '../decorators/permissions.decorator';
+import {
+  PERMISSIONS_KEY,
+  PERMISSIONS_OR_KEY,
+} from '../decorators/permissions.decorator';
 import { RolesService } from '../services/roles.service';
 
 @Injectable()
@@ -11,15 +14,15 @@ export class PermissionsGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requiredPermissions = this.reflector.getAllAndOverride<string[]>(PERMISSIONS_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const requiredPermissions = this.reflector.getAllAndOverride<string[]>(
+      PERMISSIONS_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
-    const requiredPermissionsOr = this.reflector.getAllAndOverride<string[]>(PERMISSIONS_OR_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const requiredPermissionsOr = this.reflector.getAllAndOverride<string[]>(
+      PERMISSIONS_OR_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
     // If no permissions are required, allow access
     if (!requiredPermissions && !requiredPermissionsOr) {
@@ -45,9 +48,11 @@ export class PermissionsGuard implements CanActivate {
 
     // Check OR permissions (any required)
     if (requiredPermissionsOr) {
-      const userPermissions = await this.rolesService.getUserPermissions(user.uuid);
-      const userPermissionNames = userPermissions.map(p => p.name);
-      const hasAnyPermission = requiredPermissionsOr.some(permission =>
+      const userPermissions = await this.rolesService.getUserPermissions(
+        user.uuid,
+      );
+      const userPermissionNames = userPermissions.map((p) => p.name);
+      const hasAnyPermission = requiredPermissionsOr.some((permission) =>
         userPermissionNames.includes(permission),
       );
 

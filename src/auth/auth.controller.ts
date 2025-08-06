@@ -1,9 +1,12 @@
-import { Controller, Post, Body } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Controller, Post, Body, Get, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/auth.dto';
-import { CreateUserDto } from '../users/dto/create-user.dto';
 import { UsersService } from '../users/users.service';
+import { ROLE } from '../roles/entities/role.entity';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { CurrentUser } from './decorators/current-user.decorator';
+import { RolesService } from '../roles/services/roles.service';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -11,6 +14,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly usersService: UsersService,
+    private readonly rolesService: RolesService,
   ) {}
 
   @Post('login')
@@ -21,16 +25,20 @@ export class AuthController {
     return this.authService.login(loginDto);
   }
 
-  @Post('register')
-  @ApiOperation({ summary: 'Register new user' })
-  @ApiResponse({ status: 201, description: 'User registered successfully' })
-  @ApiResponse({ status: 409, description: 'Email already exists' })
-  async register(@Body() createUserDto: CreateUserDto) {
-    const user = await this.usersService.create(createUserDto);
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get current user info and permissions' })
+  @ApiResponse({ status: 200, description: 'User info and permissions retrieved' })
+  async getMe(@CurrentUser() currentUser: any) {
+    const user = await this.usersService.findOne(currentUser.userId);
+    const permissions = await this.rolesService.getUserPermissions(currentUser.userId);
+    
     const { password: _, ...userWithoutPassword } = user;
+    
     return {
-      message: 'User registered successfully',
       user: userWithoutPassword,
+      permissions: permissions.map(p => p.name),
     };
   }
 }

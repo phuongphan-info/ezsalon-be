@@ -45,8 +45,10 @@ async function seedAllData() {
 
     console.log('\n📋 All users:');
     const allUsers = await userRepository.find({ relations: ['role'] });
-    allUsers.forEach(user => {
-      console.log(`   • ${user.name} (${user.email}) - ${user.role.displayName}`);
+    allUsers.forEach((user) => {
+      console.log(
+        `   • ${user.name} (${user.email}) - ${user.role.displayName}`,
+      );
     });
   } catch (error) {
     console.error('❌ Error during comprehensive seeding:', error);
