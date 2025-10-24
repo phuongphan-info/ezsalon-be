@@ -21,6 +21,8 @@ export const AppDataSource = new DataSource({
   password: process.env.DATABASE_PASSWORD || 'password',
   database: process.env.DATABASE_NAME || 'ezsalon',
   entities: [User, Role, Permission, Salon, Customer, CustomerSalon, SocialAccount, Product],
+  migrations: ['src/migrations/*.ts'],
+  migrationsTableName: 'migrations',
   synchronize: false,
   logging: false,
 });
