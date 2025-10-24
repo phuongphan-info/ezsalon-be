@@ -35,14 +35,14 @@ export class InitDatabase1729801600000 implements MigrationInterface {
       ) ENGINE=InnoDB
     `);
 
-    // Create roles_permissions junction table
+    // Create role_permissions junction table
     await queryRunner.query(`
-      CREATE TABLE \`roles_permissions\` (
-        \`rolesUuid\` varchar(36) NOT NULL,
-        \`permissionsUuid\` varchar(36) NOT NULL,
-        INDEX \`IDX_roles_permissions_roles\` (\`rolesUuid\`),
-        INDEX \`IDX_roles_permissions_permissions\` (\`permissionsUuid\`),
-        PRIMARY KEY (\`rolesUuid\`, \`permissionsUuid\`)
+      CREATE TABLE \`role_permissions\` (
+        \`role_uuid\` varchar(36) NOT NULL,
+        \`permission_uuid\` varchar(36) NOT NULL,
+        INDEX \`IDX_role_permissions_role\` (\`role_uuid\`),
+        INDEX \`IDX_role_permissions_permission\` (\`permission_uuid\`),
+        PRIMARY KEY (\`role_uuid\`, \`permission_uuid\`)
       ) ENGINE=InnoDB
     `);
 
@@ -158,15 +158,15 @@ export class InitDatabase1729801600000 implements MigrationInterface {
 
     // Add foreign key constraints
     await queryRunner.query(`
-      ALTER TABLE \`roles_permissions\` 
-      ADD CONSTRAINT \`FK_roles_permissions_roles\` 
-      FOREIGN KEY (\`rolesUuid\`) REFERENCES \`roles\`(\`uuid\`) ON DELETE CASCADE ON UPDATE CASCADE
+      ALTER TABLE \`role_permissions\` 
+      ADD CONSTRAINT \`FK_role_permissions_role\` 
+      FOREIGN KEY (\`role_uuid\`) REFERENCES \`roles\`(\`uuid\`) ON DELETE CASCADE ON UPDATE CASCADE
     `);
 
     await queryRunner.query(`
-      ALTER TABLE \`roles_permissions\` 
-      ADD CONSTRAINT \`FK_roles_permissions_permissions\` 
-      FOREIGN KEY (\`permissionsUuid\`) REFERENCES \`permissions\`(\`uuid\`) ON DELETE CASCADE ON UPDATE CASCADE
+      ALTER TABLE \`role_permissions\` 
+      ADD CONSTRAINT \`FK_role_permissions_permission\` 
+      FOREIGN KEY (\`permission_uuid\`) REFERENCES \`permissions\`(\`uuid\`) ON DELETE CASCADE ON UPDATE CASCADE
     `);
 
     await queryRunner.query(`
@@ -214,8 +214,8 @@ export class InitDatabase1729801600000 implements MigrationInterface {
     await queryRunner.query(`ALTER TABLE \`customer_salons\` DROP FOREIGN KEY \`FK_customer_salons_customer\``);
     await queryRunner.query(`ALTER TABLE \`users\` DROP FOREIGN KEY \`FK_users_created_by\``);
     await queryRunner.query(`ALTER TABLE \`users\` DROP FOREIGN KEY \`FK_users_role\``);
-    await queryRunner.query(`ALTER TABLE \`roles_permissions\` DROP FOREIGN KEY \`FK_roles_permissions_permissions\``);
-    await queryRunner.query(`ALTER TABLE \`roles_permissions\` DROP FOREIGN KEY \`FK_roles_permissions_roles\``);
+    await queryRunner.query(`ALTER TABLE \`role_permissions\` DROP FOREIGN KEY \`FK_role_permissions_permission\``);
+    await queryRunner.query(`ALTER TABLE \`role_permissions\` DROP FOREIGN KEY \`FK_role_permissions_role\``);
 
     // Drop tables in reverse order
     await queryRunner.query(`DROP TABLE \`products\``);
@@ -224,7 +224,7 @@ export class InitDatabase1729801600000 implements MigrationInterface {
     await queryRunner.query(`DROP TABLE \`customers\``);
     await queryRunner.query(`DROP TABLE \`salons\``);
     await queryRunner.query(`DROP TABLE \`users\``);
-    await queryRunner.query(`DROP TABLE \`roles_permissions\``);
+    await queryRunner.query(`DROP TABLE \`role_permissions\``);
     await queryRunner.query(`DROP TABLE \`roles\``);
     await queryRunner.query(`DROP TABLE \`permissions\``);
   }
