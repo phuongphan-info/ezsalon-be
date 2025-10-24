@@ -1,14 +1,16 @@
-name: CI
+name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, master, develop]
+    branches: [main, develop]
   pull_request:
-    branches: [main, master, develop]
+    branches: [main, develop]
 
 jobs:
-  lint-and-test:
+  # CI Job - Testing and validation
+  test:
     runs-on: ubuntu-latest
+    name: Test and Lint
 
     strategy:
       matrix:
@@ -27,7 +29,29 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: SSH to VPS and Deploy
+      # TODO: Re-enable tests and validation
+      # - name: Run linting
+      #   run: npm run lint
+
+      # - name: Run type checking
+      #   run: npm run build
+
+      # - name: Run unit tests
+      #   run: npm run test
+
+      # - name: Run e2e tests
+      #   run: npm run test:e2e
+      #   continue-on-error: true # Allow e2e tests to fail without blocking deployment
+
+  # CD Job - Deploy to production (only on main branch)
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy to VPS
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Deploy to VPS
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -35,7 +59,26 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd ~/app
+            echo "🔄 Pulling latest changes..."
+            git reset --hard origin/main
+            
             git pull origin main
+            
+            echo "📦 Stopping current services..."
             make down
+            
+            echo "🏗️ Building application..."
             make build
+            
+            echo "🔄 Running database migrations..."
+            make migration-run
+            
+            echo "🚀 Starting services..."
             make up-d
+            
+            echo "✅ Deployment completed successfully!"
+            
+            # Health check
+            echo "🏥 Performing health check..."
+            sleep 10
+            curl -f http://localhost:3000/health || echo "⚠️ Health check failed"

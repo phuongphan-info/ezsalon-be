@@ -13,6 +13,7 @@ import { UsersModule } from './users/users.module';
 import { CustomersModule } from './customers/customers.module';
 import { ProductsModule } from './products/products.module';
 import { CommonModule } from './common/common.module';
+import { HealthModule } from './common/health.module';
 import { HeadersMiddleware } from './common/middleware/headers.middleware';
 
 @Module({
@@ -48,6 +49,7 @@ import { HeadersMiddleware } from './common/middleware/headers.middleware';
     ProductsModule,
     ChatModule,
     CommonModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

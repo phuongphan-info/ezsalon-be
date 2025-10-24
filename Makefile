@@ -45,6 +45,25 @@ db-reset:
 	docker-compose exec app npm run migration:revert
 	docker-compose exec app npm run migration:run
 	docker-compose exec app npm run seed:all
+db-backup:
+	@echo "Creating database backup..."
+	docker-compose exec mysql mysqldump -u root -ppassword ezsalon > backup_$(shell date +%Y%m%d_%H%M%S).sql
+	@echo "Backup created successfully!"
+db-restore:
+	@if [ -z "$(file)" ]; then \
+		echo "Usage: make db-restore file=backup_file.sql"; \
+		exit 1; \
+	fi
+	@echo "Restoring database from $(file)..."
+	docker-compose exec -T mysql mysql -u root -ppassword ezsalon < $(file)
+	@echo "Database restored successfully!"
+db-check:
+	@./scripts/db-health-check.sh
+health-check:
+	@echo "🏥 Checking application health..."
+	@curl -s http://localhost:3001/health | jq '.' || echo "❌ Health check failed - is the application running?"
+health-simple:
+	@curl -s http://localhost:3001/health/simple || echo "❌ Simple health check failed"
 test:
 	docker-compose exec app npm test
 test-e2e:
