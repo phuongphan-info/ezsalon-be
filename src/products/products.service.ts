@@ -81,94 +81,82 @@ export class ProductsService {
     createdByUuid?: string,
   ): Promise<PaginatedResponse<Product>> {
     const { page = 1, limit = 10 } = paginationDto;
-    const skip = (page - 1) * limit;
+    return await this.cacheService.caching(
+      PRODUCT_TABLE_NAME,
+      { page, limit, search, status, type, createdByUuid },
+      async () => {
+        const skip = (page - 1) * limit;
 
-    const whereConditions: any = {};
-    
-    if (search) {
-      whereConditions.name = Like(`%${search}%`);
-    }
-    
-    if (status) {
-      whereConditions.status = status;
-    }
-    
-    if (type) {
-      whereConditions.type = type;
-    }
+        const whereConditions: any = {};
+        
+        if (search) {
+          whereConditions.name = Like(`%${search}%`);
+        }
+        
+        if (status) {
+          whereConditions.status = status;
+        }
+        
+        if (type) {
+          whereConditions.type = type;
+        }
 
-    if (createdByUuid) {
-      whereConditions.createdByUuid = createdByUuid;
-    }
+        if (createdByUuid) {
+          whereConditions.createdByUuid = createdByUuid;
+        }
 
-    const options: FindManyOptions<Product> = {
-      where: whereConditions,
-      skip,
-      take: limit,
-      order: {
-        displayOrder: 'ASC',
-        createdAt: 'DESC',
-      },
-    };
+        const options: FindManyOptions<Product> = {
+          where: whereConditions,
+          skip,
+          take: limit,
+          order: {
+            displayOrder: 'ASC',
+            createdAt: 'DESC',
+          },
+        };
 
-    const [products, total] = await this.productRepository.findAndCount(options);
+        const [products, total] = await this.productRepository.findAndCount(options);
 
-    return new PaginatedResponse(products, total, page, limit);
+        return new PaginatedResponse(products, total, page, limit);
+      }
+    );
   }
 
   /**
    * Find all products without pagination
    */
   async findAll(): Promise<Product[]> {
-    return this.productRepository.find({
-      order: {
-        displayOrder: 'ASC',
-        createdAt: 'DESC',
-      },
-    });
+    return await this.cacheService.caching(
+      PRODUCT_TABLE_NAME,
+      'all',
+      async () => {
+        return this.productRepository.find({
+          order: {
+            displayOrder: 'ASC',
+            createdAt: 'DESC',
+          },
+        });
+      }
+    );
   }
 
   /**
    * Find a product by UUID
    */
   async findOne(uuid: string): Promise<Product> {
-    const product = await this.productRepository.findOne({ where: { uuid } });
-    
-    if (!product) {
-      throw new NotFoundException(`Product with ID "${uuid}" not found`);
-    }
+    return await this.cacheService.caching(
+      PRODUCT_TABLE_NAME,
+      { uuid },
+      async () => {
+        const product = await this.productRepository.findOne({ where: { uuid } });
+        
+        if (!product) {
+          throw new NotFoundException(`Product with ID "${uuid}" not found`);
+        }
 
-    return product;
-  }
-
-  /**
-   * Find a product by Stripe Product ID
-   */
-  async findByStripeProductId(stripeProductId: string): Promise<Product> {
-    const product = await this.productRepository.findOne({ 
-      where: { stripeProductId } 
-    });
-    
-    if (!product) {
-      throw new NotFoundException(`Product with Stripe Product ID "${stripeProductId}" not found`);
-    }
-
-    return product;
-  }
-
-  /**
-   * Find a product by Stripe Price ID
-   */
-  async findByStripePriceId(stripePriceId: string): Promise<Product> {
-    const product = await this.productRepository.findOne({ 
-      where: { stripePriceId } 
-    });
-    
-    if (!product) {
-      throw new NotFoundException(`Product with Stripe Price ID "${stripePriceId}" not found`);
-    }
-
-    return product;
+        return product;
+      }
+    );
   }
 
   /**
@@ -239,29 +227,52 @@ export class ProductsService {
     subscription: number;
     oneTime: number;
   }> {
-    const [
-      total,
-      active,
-      inactive,
-      draft,
-      subscription,
-      oneTime,
-    ] = await Promise.all([
-      this.productRepository.count(),
-      this.productRepository.count({ where: { status: PRODUCT_STATUS.ACTIVE } }),
-      this.productRepository.count({ where: { status: PRODUCT_STATUS.INACTIVE } }),
-      this.productRepository.count({ where: { status: PRODUCT_STATUS.DRAFT } }),
-      this.productRepository.count({ where: { type: PRODUCT_TYPE.SUBSCRIPTION } }),
-      this.productRepository.count({ where: { type: PRODUCT_TYPE.ONE_TIME } }),
-    ]);
+    return await this.cacheService.caching(
+      PRODUCT_TABLE_NAME,
+      'stats',
+      async () => {
+        const [
+          total,
+          active,
+          inactive,
+          draft,
+          subscription,
+          oneTime,
+        ] = await Promise.all([
+          this.productRepository.count(),
+          this.productRepository.count({ where: { status: PRODUCT_STATUS.ACTIVE } }),
+          this.productRepository.count({ where: { status: PRODUCT_STATUS.INACTIVE } }),
+          this.productRepository.count({ where: { status: PRODUCT_STATUS.DRAFT } }),
+          this.productRepository.count({ where: { type: PRODUCT_TYPE.SUBSCRIPTION } }),
+          this.productRepository.count({ where: { type: PRODUCT_TYPE.ONE_TIME } }),
+        ]);
 
-    return {
-      total,
-      active,
-      inactive,
-      draft,
-      subscription,
-      oneTime,
-    };
+        return {
+          total,
+          active,
+          inactive,
+          draft,
+          subscription,
+          oneTime,
+        };
+      }
+    );
+  }
+
+  /**
+   * Get all active products with limited fields for public access
+   */
+  async findActivePublic(): Promise<Pick<Product, 'uuid' | 'name' | 'description' | 'priceCents' | 'currency' | 'createdAt' | 'updatedAt'>[]> {
+    return await this.cacheService.caching(
+      PRODUCT_TABLE_NAME,
+      'active_public',
+      async () => {
+        return this.productRepository.find({
+          where: { status: PRODUCT_STATUS.ACTIVE },
+          select: ['uuid', 'name', 'description', 'priceCents', 'currency', 'createdAt', 'updatedAt'],
+          order: { displayOrder: 'ASC', createdAt: 'DESC' }
+        });
+      }
+    );
   }
 }

@@ -62,7 +62,7 @@ export class CustomerSalonsService {
   async findOne(uuid: string): Promise<CustomerSalon> {
     return await this.cacheService.caching(
       CUSTOMER_SALON_TABLE_NAME,
-      { id: uuid },
+      { uuid },
       async () => {
         const customerSalon = await this.customerSalonRepository.findOne({
           where: { uuid },

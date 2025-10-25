@@ -199,32 +199,38 @@ export class UsersService {
   }
 
   async findOneByOwnership(uuid: string, requesterId: string, hasReadAll: boolean): Promise<User> {
-    const user = await this.userRepository.findOne({
-      where: { uuid },
-      relations: ['role', 'createdBy'],
-    });
-    
-    if (!user) {
-      throw new NotFoundException(`User with ID ${uuid} not found`);
-    }
+    return await this.cacheService.caching(
+      USER_TABLE_NAME,
+      { uuid, requesterId, hasReadAll },
+      async () => {
+        const user = await this.userRepository.findOne({
+          where: { uuid },
+          relations: ['role', 'createdBy'],
+        });
+        
+        if (!user) {
+          throw new NotFoundException(`User with ID ${uuid} not found`);
+        }
 
-    // If user has read-all permission, they can access any user
-    if (hasReadAll) {
-      return user;
-    }
+        // If user has read-all permission, they can access any user
+        if (hasReadAll) {
+          return user;
+        }
 
-    // Otherwise, they can only access users they created or themselves
-    if (user.createdBy?.uuid === requesterId || user.uuid === requesterId) {
-      return user;
-    }
+        // Otherwise, they can only access users they created or themselves
+        if (user.createdBy?.uuid === requesterId || user.uuid === requesterId) {
+          return user;
+        }
 
-    throw new NotFoundException(`User with ID ${uuid} not found or you don't have access to it`);
+        throw new NotFoundException(`User with ID ${uuid} not found or you don't have access to it`);
+      }
+    );
   }
 
   async findOne(uuid: string): Promise<User> {
     return await this.cacheService.caching(
       USER_TABLE_NAME,
-      { id: uuid },
+      { uuid },
       async () => {
         const user = await this.userRepository.findOne({
           where: { uuid },

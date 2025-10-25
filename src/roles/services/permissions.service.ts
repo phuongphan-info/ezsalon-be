@@ -74,7 +74,7 @@ export class PermissionsService {
   async findOne(uuid: string): Promise<Permission> {
     return await this.cacheService.caching(
       PERMISSION_TABLE_NAME,
-      { id: uuid },
+      { uuid },
       async () => {
         const permission = await this.permissionRepository.findOne({
           where: { uuid },

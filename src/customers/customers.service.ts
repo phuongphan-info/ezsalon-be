@@ -219,7 +219,7 @@ export class CustomersService {
   async findOne(uuid: string, withRole: boolean = false, currentUser?: User): Promise<Customer | (Customer & { role?: string })> {
     return await this.cacheService.caching(
       CUSTOMER_TABLE_NAME,
-      { id: uuid, withRole, currentUser: currentUser?.uuid },
+      { uuid, withRole, currentUser: currentUser?.uuid },
       async () => {
         const where: any = { uuid };
         if (currentUser) {
@@ -336,7 +336,6 @@ export class CustomersService {
       }
     );
   }
-
 
   async findCustomersByRole(currentCustomer: Customer, paginationDto?: PaginationDto): Promise<Customer[] | PaginatedResponse<Customer>> {
     if (paginationDto) {

@@ -94,33 +94,9 @@ export class CreateProductDto {
   stripePriceId?: string;
 
   @ApiProperty({ 
-    description: 'Product features as JSON object', 
+    description: 'Trial period days for subscription',
     required: false,
-    example: { 
-      "analytics": true, 
-      "customBranding": false, 
-      "apiAccess": true 
-    }
-  })
-  @IsObject()
-  @IsOptional()
-  features?: Record<string, any>;
-
-  @ApiProperty({ 
-    description: 'Product metadata as JSON object', 
-    required: false,
-    example: { 
-      "popular": true, 
-      "recommended": false 
-    }
-  })
-  @IsObject()
-  @IsOptional()
-  metadata?: Record<string, any>;
-
-  @ApiProperty({ 
-    description: 'Trial period days for subscription', 
-    required: false 
+    default: 7
   })
   @IsInt()
   @Min(0)
@@ -130,7 +106,7 @@ export class CreateProductDto {
 
   @ApiProperty({ 
     description: 'Maximum number of salons allowed', 
-    required: false 
+    required: false
   })
   @IsInt()
   @Min(1)
@@ -145,14 +121,6 @@ export class CreateProductDto {
   @Min(1)
   @IsOptional()
   maxStaffPerSalon?: number;
-
-  @ApiProperty({ 
-    description: 'Whether advanced features are included',
-    default: false
-  })
-  @IsBoolean()
-  @IsOptional()
-  includesAdvancedFeatures?: boolean;
 
   @ApiProperty({ 
     description: 'Display order for sorting',
@@ -223,7 +191,8 @@ export class UpdateProductDto {
 
   @ApiProperty({ 
     description: 'Billing interval count (e.g., 1 for every month, 3 for every 3 months)',
-    required: false
+    required: false,
+    default: 1
   })
   @IsInt()
   @Min(1)
@@ -242,24 +211,9 @@ export class UpdateProductDto {
   stripePriceId?: string;
 
   @ApiProperty({ 
-    description: 'Product features as JSON object', 
-    required: false 
-  })
-  @IsObject()
-  @IsOptional()
-  features?: Record<string, any>;
-
-  @ApiProperty({ 
-    description: 'Product metadata as JSON object', 
-    required: false 
-  })
-  @IsObject()
-  @IsOptional()
-  metadata?: Record<string, any>;
-
-  @ApiProperty({ 
     description: 'Trial period days for subscription', 
-    required: false 
+    required: false,
+    default: 7
   })
   @IsInt()
   @Min(0)
@@ -284,14 +238,6 @@ export class UpdateProductDto {
   @Min(1)
   @IsOptional()
   maxStaffPerSalon?: number;
-
-  @ApiProperty({ 
-    description: 'Whether advanced features are included',
-    required: false
-  })
-  @IsBoolean()
-  @IsOptional()
-  includesAdvancedFeatures?: boolean;
 
   @ApiProperty({ 
     description: 'Display order for sorting',
@@ -357,6 +303,29 @@ export class ProductResponseDto {
 
   @ApiProperty({ description: 'Display order' })
   displayOrder: number;
+
+  @ApiProperty({ description: 'Created at' })
+  createdAt: Date;
+
+  @ApiProperty({ description: 'Updated at' })
+  updatedAt: Date;
+}
+
+export class PublicProductResponseDto {
+  @ApiProperty({ description: 'Product UUID' })
+  uuid: string;
+
+  @ApiProperty({ description: 'Product name' })
+  name: string;
+
+  @ApiProperty({ description: 'Product description' })
+  description?: string;
+
+  @ApiProperty({ description: 'Price in cents' })
+  priceCents: number;
+
+  @ApiProperty({ description: 'Currency code' })
+  currency: string;
 
   @ApiProperty({ description: 'Created at' })
   createdAt: Date;

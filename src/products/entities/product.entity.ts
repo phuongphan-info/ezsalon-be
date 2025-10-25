@@ -24,8 +24,6 @@ export enum PRODUCT_TYPE {
 }
 
 export enum BILLING_INTERVAL {
-  DAY = 'day',
-  WEEK = 'week',
   MONTH = 'month',
   YEAR = 'year',
 }
@@ -61,7 +59,7 @@ export class Product {
   currency: string;
 
   @ApiProperty({ description: 'Billing interval for subscription', enum: BILLING_INTERVAL, required: false })
-  @Column({ type: 'enum', enum: BILLING_INTERVAL, nullable: true, name: 'billing_interval' })
+  @Column({ type: 'enum', enum: BILLING_INTERVAL, default: BILLING_INTERVAL.MONTH, name: 'billing_interval' })
   billingInterval?: BILLING_INTERVAL;
 
   @ApiProperty({ description: 'Billing interval count (e.g., 1 for every month, 3 for every 3 months)' })
@@ -89,7 +87,7 @@ export class Product {
   displayOrder: number;
 
   @ApiProperty({ description: 'Trial period in days (0 for no trial)' })
-  @Column({ type: 'int', default: 0, name: 'trial_period_days' })
+  @Column({ type: 'int', default: 7, name: 'trial_period_days' })
   trialPeriodDays: number;
 
   @ApiProperty({ description: 'User who created this product', type: () => User })

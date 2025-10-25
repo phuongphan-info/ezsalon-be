@@ -11,7 +11,6 @@ import {
   HttpCode,
   UseGuards,
   NotFoundException,
-  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,

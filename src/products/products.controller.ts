@@ -22,7 +22,7 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../roles/guards/permissions.guard';
 import { RequirePermissions, RequireAnyPermission } from '../roles/decorators/permissions.decorator';
-import { CreateProductDto, UpdateProductDto, ProductResponseDto } from './dto/product.dto';
+import { CreateProductDto, UpdateProductDto, ProductResponseDto, PublicProductResponseDto } from './dto/product.dto';
 import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
 import { ProductsService } from './products.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -31,15 +31,26 @@ import { PermissionHelper } from '../roles/helpers/permission.helper';
 
 @ApiTags('products')
 @Controller('products')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
-@ApiBearerAuth('JWT-auth')
 export class ProductsController {
   constructor(
     private readonly productsService: ProductsService,
     private readonly permissionHelper: PermissionHelper,
   ) {}
 
+  @Get('public')
+  @ApiOperation({ summary: 'Get all active products (public access)' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Active products retrieved successfully',
+    type: [PublicProductResponseDto]
+  })
+  async findActivePublic(): Promise<PublicProductResponseDto[]> {
+    return this.productsService.findActivePublic();
+  }
+
   @Post()
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @ApiBearerAuth('JWT-auth')
   @RequirePermissions('products:create')
   @ApiOperation({ summary: 'Create a new product plan' })
   @ApiResponse({ 
@@ -59,6 +70,8 @@ export class ProductsController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @ApiBearerAuth('JWT-auth')
   @RequireAnyPermission('products:read', 'products:read-all')
   @ApiOperation({ summary: 'Get products with pagination and filtering' })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number' })
@@ -91,6 +104,8 @@ export class ProductsController {
   }
 
   @Get('stats')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @ApiBearerAuth('JWT-auth')
   @RequirePermissions('products:read-all')
   @ApiOperation({ summary: 'Get product statistics' })
   @ApiResponse({ 
@@ -114,63 +129,9 @@ export class ProductsController {
     return this.productsService.getProductStats();
   }
 
-  @Get('stripe/product/:stripeProductId')
-  @RequireAnyPermission('products:read', 'products:read-all')
-  @ApiOperation({ summary: 'Get product by Stripe Product ID' })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Product retrieved successfully',
-    type: ProductResponseDto
-  })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - products:read or products:read-all permission required' })
-  @ApiResponse({ status: 404, description: 'Product not found' })
-  async findByStripeProductId(@Param('stripeProductId') stripeProductId: string, @CurrentUser() currentUser: any): Promise<Product> {
-    const hasReadAllPermission = await this.permissionHelper.hasPermission(
-      currentUser.userId,
-      'products:read-all',
-    );
-    if (hasReadAllPermission) {
-      return await this.productsService.findByStripeProductId(stripeProductId);
-    }
-    
-    // For non-admin users, check if the product belongs to them
-    const product = await this.productsService.findByStripeProductId(stripeProductId);
-    if (product.createdByUuid !== currentUser.userId) {
-      throw new ForbiddenException('You can only access products you created');
-    }
-    return product;
-  }
-
-  @Get('stripe/price/:stripePriceId')
-  @RequireAnyPermission('products:read', 'products:read-all')
-  @ApiOperation({ summary: 'Get product by Stripe Price ID' })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Product retrieved successfully',
-    type: ProductResponseDto
-  })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - products:read or products:read-all permission required' })
-  @ApiResponse({ status: 404, description: 'Product not found' })
-  async findByStripePriceId(@Param('stripePriceId') stripePriceId: string, @CurrentUser() currentUser: any): Promise<Product> {
-    const hasReadAllPermission = await this.permissionHelper.hasPermission(
-      currentUser.userId,
-      'products:read-all',
-    );
-    if (hasReadAllPermission) {
-      return await this.productsService.findByStripePriceId(stripePriceId);
-    }
-    
-    // For non-admin users, check if the product belongs to them
-    const product = await this.productsService.findByStripePriceId(stripePriceId);
-    if (product.createdByUuid !== currentUser.userId) {
-      throw new ForbiddenException('You can only access products you created');
-    }
-    return product;
-  }
-
   @Get(':uuid')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @ApiBearerAuth('JWT-auth')
   @RequireAnyPermission('products:read', 'products:read-all')
   @ApiOperation({ summary: 'Get a product by ID' })
   @ApiResponse({ 
@@ -199,8 +160,10 @@ export class ProductsController {
   }
 
   @Patch(':uuid')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @ApiBearerAuth('JWT-auth')
   @RequireAnyPermission('products:update', 'products:update-all')
-  @ApiOperation({ summary: 'Update a product' })
+  @ApiOperation({ summary: 'Update a product' })  
   @ApiResponse({ 
     status: 200, 
     description: 'Product updated successfully',
@@ -229,6 +192,8 @@ export class ProductsController {
   }
 
   @Delete(':uuid')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @ApiBearerAuth('JWT-auth')
   @RequireAnyPermission('products:delete', 'products:delete-all')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a product' })
