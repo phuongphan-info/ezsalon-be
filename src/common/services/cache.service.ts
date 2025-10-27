@@ -19,7 +19,7 @@ export class CacheService {
     users: ['users'],
     roles: ['roles', 'permissions'],
     permissions: ['permissions', 'roles'],
-    products: ['products'],
+    plans: ['plans'],
   };
 
   constructor(

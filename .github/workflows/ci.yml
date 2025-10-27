@@ -65,16 +65,13 @@ jobs:
             git pull origin main
             
             echo "📦 Stopping current services..."
-            make down
+            make down-prod
             
-            echo "🏗️ Building application..."
-            make build
+            echo "🚀 Starting services..."
+            make up-prod
             
             echo "🔄 Running database migrations..."
             make migration-run
-            
-            echo "🚀 Starting services..."
-            make up-d
             
             echo "✅ Deployment completed successfully!"
             

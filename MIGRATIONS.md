@@ -108,7 +108,7 @@ This will create all the necessary tables:
 - `customers` - Customer information
 - `customer_salons` - Many-to-many relationship between customers and salons
 - `social_accounts` - OAuth social login accounts
-- `products` - Services and products offered by salons
+- `plans` - Services and plans offered by salons
 
 ### Database Schema
 
@@ -151,10 +151,10 @@ The initial migration (`1729801600000-InitDatabase.ts`) creates the following ta
 - Can link to either users or customers
 - Supports multiple providers (Google, Facebook, etc.)
 
-**products**
-- Services and products offered
+**plans**
+- Services and plans offered
 - Includes pricing, duration, and categorization
-- Status tracking for active/inactive products
+- Status tracking for active/inactive plans
 
 ## Migration Best Practices
 
@@ -163,7 +163,7 @@ The initial migration (`1729801600000-InitDatabase.ts`) creates the following ta
 Use descriptive names for your migrations:
 - `AddUserAvatarColumn`
 - `CreateBookingsTable`
-- `UpdateProductPricing`
+- `UpdatePlanPricing`
 - `AddIndexesToUsersTable`
 
 ### Writing Safe Migrations
@@ -207,7 +207,7 @@ export class AddUserAvatarColumn1729801700000 implements MigrationInterface {
 - Run migrations after pulling new code
 - Generate migrations when you modify entities
 
-### Production
+### Planion
 
 - **Never use `synchronize: true`**
 - Always review generated migrations before applying
@@ -258,7 +258,7 @@ npm run seed:all
 # Or seed specific data
 npm run seed:permissions
 npm run seed:users
-npm run seed:products
+npm run seed:plans
 ```
 
 ## Integration with CI/CD

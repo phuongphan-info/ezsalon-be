@@ -10,15 +10,15 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 
-export const PRODUCT_TABLE_NAME = 'products';
+export const PLAN_TABLE_NAME = 'plans';
 
-export enum PRODUCT_STATUS {
+export enum PLAN_STATUS {
   ACTIVE = 'ACTIVE',
   INACTIVE = 'INACTIVE',
   DRAFT = 'DRAFT',
 }
 
-export enum PRODUCT_TYPE {
+export enum PLAN_TYPE {
   SUBSCRIPTION = 'SUBSCRIPTION',
   ONE_TIME = 'ONE_TIME',
 }
@@ -28,27 +28,27 @@ export enum BILLING_INTERVAL {
   YEAR = 'year',
 }
 
-@Entity(PRODUCT_TABLE_NAME)
-export class Product {
-  @ApiProperty({ description: 'Product ID' })
+@Entity(PLAN_TABLE_NAME)
+export class Plan {
+  @ApiProperty({ description: 'Plan ID' })
   @PrimaryGeneratedColumn('uuid')
   uuid: string;
 
-  @ApiProperty({ description: 'Product name' })
-  @Column({ name: 'product_name' })
+  @ApiProperty({ description: 'Plan name' })
+  @Column({ name: 'plan_name' })
   name: string;
 
-  @ApiProperty({ description: 'Product description' })
+  @ApiProperty({ description: 'Plan description' })
   @Column({ type: 'text', nullable: true, name: 'description' })
   description?: string;
 
-  @ApiProperty({ description: 'Product status', enum: PRODUCT_STATUS })
-  @Column({ type: 'enum', enum: PRODUCT_STATUS, default: PRODUCT_STATUS.DRAFT, name: 'status' })
-  status: PRODUCT_STATUS;
+  @ApiProperty({ description: 'Plan status', enum: PLAN_STATUS })
+  @Column({ type: 'enum', enum: PLAN_STATUS, default: PLAN_STATUS.DRAFT, name: 'status' })
+  status: PLAN_STATUS;
 
-  @ApiProperty({ description: 'Product type', enum: PRODUCT_TYPE })
-  @Column({ type: 'enum', enum: PRODUCT_TYPE, default: PRODUCT_TYPE.SUBSCRIPTION, name: 'type' })
-  type: PRODUCT_TYPE;
+  @ApiProperty({ description: 'Plan type', enum: PLAN_TYPE })
+  @Column({ type: 'enum', enum: PLAN_TYPE, default: PLAN_TYPE.SUBSCRIPTION, name: 'type' })
+  type: PLAN_TYPE;
 
   @ApiProperty({ description: 'Price in cents (e.g., 1999 for $19.99)' })
   @Column({ type: 'int', name: 'price_cents' })
@@ -66,9 +66,9 @@ export class Product {
   @Column({ type: 'int', nullable: true, default: 1, name: 'billing_interval_count' })
   billingIntervalCount?: number;
 
-  @ApiProperty({ description: 'Stripe product ID' })
-  @Column({ nullable: true, name: 'stripe_product_id' })
-  stripeProductId?: string;
+  @ApiProperty({ description: 'Stripe plan ID' })
+  @Column({ nullable: true, name: 'stripe_plan_id' })
+  stripePlanId?: string;
 
   @ApiProperty({ description: 'Stripe price ID' })
   @Column({ nullable: true, name: 'stripe_price_id' })
@@ -90,12 +90,12 @@ export class Product {
   @Column({ type: 'int', default: 7, name: 'trial_period_days' })
   trialPeriodDays: number;
 
-  @ApiProperty({ description: 'User who created this product', type: () => User })
+  @ApiProperty({ description: 'User who created this plan', type: () => User })
   @ManyToOne(() => User, { nullable: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'created_by_uuid' })
   createdBy?: User;
 
-  @ApiProperty({ description: 'UUID of the user who created this product' })
+  @ApiProperty({ description: 'UUID of the user who created this plan' })
   @Column({ nullable: true, name: 'created_by_uuid' })
   createdByUuid?: string;
 

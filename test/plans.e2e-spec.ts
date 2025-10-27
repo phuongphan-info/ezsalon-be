@@ -5,13 +5,13 @@ import { v4 as uuid } from 'uuid';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { CacheService } from '../src/common/services/cache.service';
-import { ProductsService } from '../src/products/products.service';
-import { PRODUCT_STATUS, PRODUCT_TYPE, BILLING_INTERVAL } from '../src/products/entities/product.entity';
+import { PlansService } from '../src/plans/plans.service';
+import { PLAN_STATUS, PLAN_TYPE, BILLING_INTERVAL } from '../src/plans/entities/plan.entity';
 
-describe('Products E2E', () => {
+describe('Plans E2E', () => {
   let app: INestApplication;
   let cacheService: CacheService;
-  let productsService: ProductsService;
+  let plansService: PlansService;
   let dataSource: DataSource;
   
   // Tokens for different users
@@ -22,13 +22,13 @@ describe('Products E2E', () => {
   let adminUser: any;
   let moderatorUser: any;
   
-  // Product data
-  let adminProduct: any;
-  let moderatorProduct: any;
+  // Plan data
+  let adminPlan: any;
+  let moderatorPlan: any;
   
   // Arrays to collect created data for cleanup
   const createdUserUuids: string[] = [];
-  const createdProductUuids: string[] = [];
+  const createdPlanUuids: string[] = [];
   
   const generateUniqueEmail = () => `test-e2e-${Date.now()}-${uuid()}@ezsalon.io`;
   
@@ -39,7 +39,7 @@ describe('Products E2E', () => {
 
     app = moduleFixture.createNestApplication();
     cacheService = moduleFixture.get<CacheService>(CacheService);
-    productsService = moduleFixture.get<ProductsService>(ProductsService);
+    plansService = moduleFixture.get<PlansService>(PlansService);
     dataSource = moduleFixture.get<DataSource>(DataSource);
     
     await app.init();
@@ -54,7 +54,7 @@ describe('Products E2E', () => {
   const cleanupAllTestData = async () => {
     try {
       // Delete users in reverse order to handle foreign key constraints
-      // Products will be automatically deleted due to CASCADE delete constraint
+      // Plans will be automatically deleted due to CASCADE delete constraint
       // Delete moderator first (created by admin), then admin
       const usersToDelete = [...createdUserUuids].reverse();
       
@@ -80,7 +80,7 @@ describe('Products E2E', () => {
     await app.close();
   });
 
-  describe('Products Permission Testing Flow', () => {
+  describe('Plans Permission Testing Flow', () => {
     it('0. Login with existing admin to create test users', async () => {
       // First login with existing admin to create test users
       const response = await request(app.getHttpServer())
@@ -133,12 +133,12 @@ describe('Products E2E', () => {
       adminAccessToken = response.body.accessToken;
     });
 
-    it('3. Admin creates product test-e2e-product-a-of-admin', async () => {
-      const productData = {
-        name: 'test-e2e-product-a-of-admin',
-        description: 'Test product created by admin',
-        status: PRODUCT_STATUS.ACTIVE,
-        type: PRODUCT_TYPE.SUBSCRIPTION,
+    it('3. Admin creates plan test-e2e-plan-a-of-admin', async () => {
+      const planData = {
+        name: 'test-e2e-plan-a-of-admin',
+        description: 'Test plan created by admin',
+        status: PLAN_STATUS.ACTIVE,
+        type: PLAN_TYPE.SUBSCRIPTION,
         priceCents: 2999,
         currency: 'USD',
         billingInterval: BILLING_INTERVAL.MONTH,
@@ -149,17 +149,17 @@ describe('Products E2E', () => {
       };
 
       const response = await request(app.getHttpServer())
-        .post('/products')
+        .post('/plans')
         .set('Authorization', `Bearer ${adminAccessToken}`)
-        .send(productData)
+        .send(planData)
         .expect(201);
 
       expect(response.body).toHaveProperty('uuid');
-      expect(response.body.name).toBe(productData.name);
-      expect(response.body.status).toBe(productData.status);
+      expect(response.body.name).toBe(planData.name);
+      expect(response.body.status).toBe(planData.status);
       
-      adminProduct = response.body;
-      createdProductUuids.push(adminProduct.uuid);
+      adminPlan = response.body;
+      createdPlanUuids.push(adminPlan.uuid);
     });
 
     it('4. Create moderator user test-e2e-user-moderator', async () => {
@@ -200,63 +200,63 @@ describe('Products E2E', () => {
       moderatorAccessToken = response.body.accessToken;
     });
 
-    it('6. Moderator checks if admin product exists in GET products', async () => {
+    it('6. Moderator checks if admin plan exists in GET plans', async () => {
       const response = await request(app.getHttpServer())
-        .get('/products')
+        .get('/plans')
         .set('Authorization', `Bearer ${moderatorAccessToken}`)
         .expect(200);
 
       expect(response.body).toHaveProperty('data');
       expect(Array.isArray(response.body.data)).toBe(true);
       
-      // Moderator should NOT see admin's product (only their own products)
-      const adminProductExists = response.body.data.some(
-        (product: any) => product.name === 'test-e2e-product-a-of-admin'
+      // Moderator should NOT see admin's plan (only their own plans)
+      const adminPlanExists = response.body.data.some(
+        (plan: any) => plan.name === 'test-e2e-plan-a-of-admin'
       );
-      expect(adminProductExists).toBe(false);
+      expect(adminPlanExists).toBe(false);
     });
 
-    it('7. Moderator checks if admin product exists in GET products/[uuid]', async () => {
-      // Moderator should get 403 Forbidden when trying to access admin's product
+    it('7. Moderator checks if admin plan exists in GET plans/[uuid]', async () => {
+      // Moderator should get 403 Forbidden when trying to access admin's plan
       await request(app.getHttpServer())
-        .get(`/products/${adminProduct.uuid}`)
+        .get(`/plans/${adminPlan.uuid}`)
         .set('Authorization', `Bearer ${moderatorAccessToken}`)
         .expect(403);
     });
 
-    it('8. Admin checks if admin product exists in GET products', async () => {
+    it('8. Admin checks if admin plan exists in GET plans', async () => {
       const response = await request(app.getHttpServer())
-        .get('/products')
+        .get('/plans')
         .set('Authorization', `Bearer ${adminAccessToken}`)
         .expect(200);
 
       expect(response.body).toHaveProperty('data');
       expect(Array.isArray(response.body.data)).toBe(true);
       
-      // Admin should see all products including their own
-      const adminProductExists = response.body.data.some(
-        (product: any) => product.name === 'test-e2e-product-a-of-admin'
+      // Admin should see all plans including their own
+      const adminPlanExists = response.body.data.some(
+        (plan: any) => plan.name === 'test-e2e-plan-a-of-admin'
       );
-      expect(adminProductExists).toBe(true);
+      expect(adminPlanExists).toBe(true);
     });
 
-    it('9. Admin checks if admin product exists in GET products/[uuid]', async () => {
+    it('9. Admin checks if admin plan exists in GET plans/[uuid]', async () => {
       const response = await request(app.getHttpServer())
-        .get(`/products/${adminProduct.uuid}`)
+        .get(`/plans/${adminPlan.uuid}`)
         .set('Authorization', `Bearer ${adminAccessToken}`)
         .expect(200);
 
       expect(response.body).toHaveProperty('uuid');
-      expect(response.body.uuid).toBe(adminProduct.uuid);
-      expect(response.body.name).toBe('test-e2e-product-a-of-admin');
+      expect(response.body.uuid).toBe(adminPlan.uuid);
+      expect(response.body.name).toBe('test-e2e-plan-a-of-admin');
     });
 
-    it('10. Moderator creates product test-e2e-product-a-of-moderator', async () => {
-      const productData = {
-        name: 'test-e2e-product-a-of-moderator',
-        description: 'Test product created by moderator',
-        status: PRODUCT_STATUS.ACTIVE,
-        type: PRODUCT_TYPE.SUBSCRIPTION,
+    it('10. Moderator creates plan test-e2e-plan-a-of-moderator', async () => {
+      const planData = {
+        name: 'test-e2e-plan-a-of-moderator',
+        description: 'Test plan created by moderator',
+        status: PLAN_STATUS.ACTIVE,
+        type: PLAN_TYPE.SUBSCRIPTION,
         priceCents: 1999,
         currency: 'USD',
         billingInterval: BILLING_INTERVAL.MONTH,
@@ -267,74 +267,74 @@ describe('Products E2E', () => {
       };
 
       const response = await request(app.getHttpServer())
-        .post('/products')
+        .post('/plans')
         .set('Authorization', `Bearer ${moderatorAccessToken}`)
-        .send(productData)
+        .send(planData)
         .expect(201);
 
       expect(response.body).toHaveProperty('uuid');
-      expect(response.body.name).toBe(productData.name);
-      expect(response.body.status).toBe(productData.status);
+      expect(response.body.name).toBe(planData.name);
+      expect(response.body.status).toBe(planData.status);
       
-      moderatorProduct = response.body;
-      createdProductUuids.push(moderatorProduct.uuid);
+      moderatorPlan = response.body;
+      createdPlanUuids.push(moderatorPlan.uuid);
     });
 
-    it('11. Moderator checks if moderator product exists in GET products', async () => {
+    it('11. Moderator checks if moderator plan exists in GET plans', async () => {
       const response = await request(app.getHttpServer())
-        .get('/products')
+        .get('/plans')
         .set('Authorization', `Bearer ${moderatorAccessToken}`)
         .expect(200);
 
       expect(response.body).toHaveProperty('data');
       expect(Array.isArray(response.body.data)).toBe(true);
       
-      // Moderator should see their own product
-      const moderatorProductExists = response.body.data.some(
-        (product: any) => product.name === 'test-e2e-product-a-of-moderator'
+      // Moderator should see their own plan
+      const moderatorPlanExists = response.body.data.some(
+        (plan: any) => plan.name === 'test-e2e-plan-a-of-moderator'
       );
-      expect(moderatorProductExists).toBe(true);
+      expect(moderatorPlanExists).toBe(true);
     });
 
-    it('12. Moderator checks if moderator product exists in GET products/[uuid]', async () => {
+    it('12. Moderator checks if moderator plan exists in GET plans/[uuid]', async () => {
       const response = await request(app.getHttpServer())
-        .get(`/products/${moderatorProduct.uuid}`)
+        .get(`/plans/${moderatorPlan.uuid}`)
         .set('Authorization', `Bearer ${moderatorAccessToken}`)
         .expect(200);
 
       expect(response.body).toHaveProperty('uuid');
-      expect(response.body.uuid).toBe(moderatorProduct.uuid);
-      expect(response.body.name).toBe('test-e2e-product-a-of-moderator');
+      expect(response.body.uuid).toBe(moderatorPlan.uuid);
+      expect(response.body.name).toBe('test-e2e-plan-a-of-moderator');
     });
 
-    it('13. Admin checks if moderator product exists in GET products', async () => {
+    it('13. Admin checks if moderator plan exists in GET plans', async () => {
       const response = await request(app.getHttpServer())
-        .get('/products')
+        .get('/plans')
         .set('Authorization', `Bearer ${adminAccessToken}`)
         .expect(200);
 
       expect(response.body).toHaveProperty('data');
       expect(Array.isArray(response.body.data)).toBe(true);
       
-      // Admin should see all products including moderator's product
-      const moderatorProductExists = response.body.data.some(
-        (product: any) => product.name === 'test-e2e-product-a-of-moderator'
+      // Admin should see all plans including moderator's plan
+      const moderatorPlanExists = response.body.data.some(
+        (plan: any) => plan.name === 'test-e2e-plan-a-of-moderator'
       );
-      expect(moderatorProductExists).toBe(true);
+      expect(moderatorPlanExists).toBe(true);
     });
 
-    it('14. Admin checks if moderator product exists in GET products/[uuid]', async () => {
+    it('14. Admin checks if moderator plan exists in GET plans/[uuid]', async () => {
       const response = await request(app.getHttpServer())
-        .get(`/products/${moderatorProduct.uuid}`)
+        .get(`/plans/${moderatorPlan.uuid}`)
         .set('Authorization', `Bearer ${adminAccessToken}`)
         .expect(200);
 
       expect(response.body).toHaveProperty('uuid');
-      expect(response.body.uuid).toBe(moderatorProduct.uuid);
-      expect(response.body.name).toBe('test-e2e-product-a-of-moderator');
+      expect(response.body.uuid).toBe(moderatorPlan.uuid);
+      expect(response.body.name).toBe('test-e2e-plan-a-of-moderator');
     });
 
-    it('15. Create second moderator user and test product isolation', async () => {
+    it('15. Create second moderator user and test plan isolation', async () => {
       // Create second moderator user
       const moderator2UserData = {
         email: generateUniqueEmail(),
@@ -365,12 +365,12 @@ describe('Products E2E', () => {
 
       const moderator2AccessToken = loginResponse.body.accessToken;
 
-      // Create product for second moderator
-      const productData = {
-        name: 'test-e2e-product-b-of-moderator-2',
-        description: 'Test product created by second moderator',
-        status: PRODUCT_STATUS.ACTIVE,
-        type: PRODUCT_TYPE.SUBSCRIPTION,
+      // Create plan for second moderator
+      const planData = {
+        name: 'test-e2e-plan-b-of-moderator-2',
+        description: 'Test plan created by second moderator',
+        status: PLAN_STATUS.ACTIVE,
+        type: PLAN_TYPE.SUBSCRIPTION,
         priceCents: 3999,
         currency: 'USD',
         billingInterval: BILLING_INTERVAL.MONTH,
@@ -380,93 +380,93 @@ describe('Products E2E', () => {
         displayOrder: 3
       };
 
-      const createProductResponse = await request(app.getHttpServer())
-        .post('/products')
+      const createPlanResponse = await request(app.getHttpServer())
+        .post('/plans')
         .set('Authorization', `Bearer ${moderator2AccessToken}`)
-        .send(productData)
+        .send(planData)
         .expect(201);
 
-      expect(createProductResponse.body).toHaveProperty('uuid');
-      const moderator2Product = createProductResponse.body;
-      createdProductUuids.push(moderator2Product.uuid);
+      expect(createPlanResponse.body).toHaveProperty('uuid');
+      const moderator2Plan = createPlanResponse.body;
+      createdPlanUuids.push(moderator2Plan.uuid);
 
-      // Second moderator should only see their own product in GET /products
-      const getProductsResponse = await request(app.getHttpServer())
-        .get('/products')
+      // Second moderator should only see their own plan in GET /plans
+      const getPlansResponse = await request(app.getHttpServer())
+        .get('/plans')
         .set('Authorization', `Bearer ${moderator2AccessToken}`)
         .expect(200);
 
-      expect(getProductsResponse.body).toHaveProperty('data');
-      expect(Array.isArray(getProductsResponse.body.data)).toBe(true);
-      expect(getProductsResponse.body.data).toHaveLength(1);
-      expect(getProductsResponse.body.data[0].name).toBe('test-e2e-product-b-of-moderator-2');
+      expect(getPlansResponse.body).toHaveProperty('data');
+      expect(Array.isArray(getPlansResponse.body.data)).toBe(true);
+      expect(getPlansResponse.body.data).toHaveLength(1);
+      expect(getPlansResponse.body.data[0].name).toBe('test-e2e-plan-b-of-moderator-2');
 
-      // Second moderator should be able to access their own product via GET /products/{uuid}
-      const getProductResponse = await request(app.getHttpServer())
-        .get(`/products/${moderator2Product.uuid}`)
+      // Second moderator should be able to access their own plan via GET /plans/{uuid}
+      const getPlanResponse = await request(app.getHttpServer())
+        .get(`/plans/${moderator2Plan.uuid}`)
         .set('Authorization', `Bearer ${moderator2AccessToken}`)
         .expect(200);
 
-      expect(getProductResponse.body.uuid).toBe(moderator2Product.uuid);
-      expect(getProductResponse.body.name).toBe('test-e2e-product-b-of-moderator-2');
+      expect(getPlanResponse.body.uuid).toBe(moderator2Plan.uuid);
+      expect(getPlanResponse.body.name).toBe('test-e2e-plan-b-of-moderator-2');
 
-      // Second moderator should NOT be able to access first moderator's product
+      // Second moderator should NOT be able to access first moderator's plan
       await request(app.getHttpServer())
-        .get(`/products/${moderatorProduct.uuid}`)
+        .get(`/plans/${moderatorPlan.uuid}`)
         .set('Authorization', `Bearer ${moderator2AccessToken}`)
         .expect(403);
 
-      // First moderator should NOT be able to access second moderator's product
+      // First moderator should NOT be able to access second moderator's plan
       await request(app.getHttpServer())
-        .get(`/products/${moderator2Product.uuid}`)
+        .get(`/plans/${moderator2Plan.uuid}`)
         .set('Authorization', `Bearer ${moderatorAccessToken}`)
         .expect(403);
 
-      // Admin should be able to see all products (including the new one)
-      const adminProductsResponse = await request(app.getHttpServer())
-        .get('/products')
+      // Admin should be able to see all plans (including the new one)
+      const adminPlansResponse = await request(app.getHttpServer())
+        .get('/plans')
         .set('Authorization', `Bearer ${adminAccessToken}`)
         .expect(200);
 
-      expect(adminProductsResponse.body.data.length).toBeGreaterThanOrEqual(3);
-      const productNames = adminProductsResponse.body.data.map((p: any) => p.name);
-      expect(productNames).toContain('test-e2e-product-a-of-admin');
-      expect(productNames).toContain('test-e2e-product-a-of-moderator');
-      expect(productNames).toContain('test-e2e-product-b-of-moderator-2');
+      expect(adminPlansResponse.body.data.length).toBeGreaterThanOrEqual(3);
+      const planNames = adminPlansResponse.body.data.map((p: any) => p.name);
+      expect(planNames).toContain('test-e2e-plan-a-of-admin');
+      expect(planNames).toContain('test-e2e-plan-a-of-moderator');
+      expect(planNames).toContain('test-e2e-plan-b-of-moderator-2');
 
-      // Admin should be able to access second moderator's product
-      const adminGetProductResponse = await request(app.getHttpServer())
-        .get(`/products/${moderator2Product.uuid}`)
+      // Admin should be able to access second moderator's plan
+      const adminGetPlanResponse = await request(app.getHttpServer())
+        .get(`/plans/${moderator2Plan.uuid}`)
         .set('Authorization', `Bearer ${adminAccessToken}`)
         .expect(200);
 
-      expect(adminGetProductResponse.body.uuid).toBe(moderator2Product.uuid);
-      expect(adminGetProductResponse.body.name).toBe('test-e2e-product-b-of-moderator-2');
+      expect(adminGetPlanResponse.body.uuid).toBe(moderator2Plan.uuid);
+      expect(adminGetPlanResponse.body.name).toBe('test-e2e-plan-b-of-moderator-2');
     });
 
-    it('16. Cleanup - Delete test users and products', async () => {
+    it('16. Cleanup - Delete test users and plans', async () => {
       // This test ensures cleanup happens
       // The actual cleanup is handled in afterAll hook
       expect(createdUserUuids.length).toBe(3);
-      expect(createdProductUuids.length).toBe(3);
+      expect(createdPlanUuids.length).toBe(3);
       
-      // Verify products exist before cleanup (skip if products weren't created due to earlier failures)
-      if (adminProduct && adminProduct.uuid) {
-        const adminProductResponse = await request(app.getHttpServer())
-          .get(`/products/${adminProduct.uuid}`)
+      // Verify plans exist before cleanup (skip if plans weren't created due to earlier failures)
+      if (adminPlan && adminPlan.uuid) {
+        const adminPlanResponse = await request(app.getHttpServer())
+          .get(`/plans/${adminPlan.uuid}`)
           .set('Authorization', `Bearer ${adminAccessToken}`)
           .expect(200);
         
-        expect(adminProductResponse.body.uuid).toBe(adminProduct.uuid);
+        expect(adminPlanResponse.body.uuid).toBe(adminPlan.uuid);
       }
       
-      if (moderatorProduct && moderatorProduct.uuid) {
-        const moderatorProductResponse = await request(app.getHttpServer())
-          .get(`/products/${moderatorProduct.uuid}`)
+      if (moderatorPlan && moderatorPlan.uuid) {
+        const moderatorPlanResponse = await request(app.getHttpServer())
+          .get(`/plans/${moderatorPlan.uuid}`)
           .set('Authorization', `Bearer ${moderatorAccessToken}`)
           .expect(200);
         
-        expect(moderatorProductResponse.body.uuid).toBe(moderatorProduct.uuid);
+        expect(moderatorPlanResponse.body.uuid).toBe(moderatorPlan.uuid);
       }
     });
   });

@@ -19,8 +19,6 @@ export class CustomersService {
   constructor(
     @InjectRepository(Customer)
     private readonly customerRepository: Repository<Customer>,
-    @InjectRepository(CustomerSalon)
-    private readonly customerSalonRepository: Repository<CustomerSalon>,
     private readonly customerSalonsService: CustomerSalonsService,
     private readonly cacheService: CacheService,
     private readonly dataSource: DataSource,
@@ -291,19 +289,16 @@ export class CustomersService {
       throw new ForbiddenException('Cannot delete admin account');
     }
     
-    // Get all salons owned by this customer
-    const ownedSalons = await this.customerSalonRepository
-      .createQueryBuilder('cs')
-      .innerJoin('cs.salon', 'salon')
-      .where('cs.customerUuid = :customerUuid', { customerUuid: uuid })
-      .andWhere('cs.roleName = :role', { role: CUSTOMER_SALON_ROLE.OWNER })
-      .select('salon.uuid', 'salonUuid')
-      .getRawMany();
+    // Get all salons owned by this customer using service (no direct repository usage)
+    const customerSalonRelations = await this.customerSalonsService.findByCustomerUuid(uuid);
+    const ownedSalonUuids = customerSalonRelations
+      .filter(cs => cs.roleName === CUSTOMER_SALON_ROLE.OWNER)
+      .map(cs => cs.salonUuid);
 
     // Delete all salons owned by this customer
     // This will cascade delete all customer_salon records for those salons
-    for (const ownedSalon of ownedSalons) {
-      await this.dataSource.query('DELETE FROM salons WHERE uuid = ?', [ownedSalon.salonUuid]);
+    for (const salonUuid of ownedSalonUuids) {
+      await this.dataSource.query('DELETE FROM salons WHERE uuid = ?', [salonUuid]);
     }
 
     // Delete the customer (this will cascade delete remaining customer_salon records)

@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-export class UpdateProductsTable1761328627286 implements MigrationInterface {
-    name = 'UpdateProductsTable1761328627286'
+export class UpdatePlansTable1761328627286 implements MigrationInterface {
+    name = 'UpdatePlansTable1761328627286'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`ALTER TABLE \`users\` DROP FOREIGN KEY \`FK_users_created_by\``);
@@ -36,10 +36,10 @@ export class UpdateProductsTable1761328627286 implements MigrationInterface {
         await queryRunner.query(`ALTER TABLE \`customer_salons\` DROP COLUMN \`id\``);
         await queryRunner.query(`ALTER TABLE \`customer_salons\` DROP COLUMN \`relationship_status\``);
         await queryRunner.query(`ALTER TABLE \`customer_salons\` DROP COLUMN \`joined_at\``);
-        await queryRunner.query(`ALTER TABLE \`products\` DROP COLUMN \`price\``);
-        await queryRunner.query(`ALTER TABLE \`products\` DROP COLUMN \`duration_minutes\``);
-        await queryRunner.query(`ALTER TABLE \`products\` DROP COLUMN \`category\``);
-        await queryRunner.query(`ALTER TABLE \`products\` DROP COLUMN \`is_active\``);
+        await queryRunner.query(`ALTER TABLE \`plans\` DROP COLUMN \`price\``);
+        await queryRunner.query(`ALTER TABLE \`plans\` DROP COLUMN \`duration_minutes\``);
+        await queryRunner.query(`ALTER TABLE \`plans\` DROP COLUMN \`category\``);
+        await queryRunner.query(`ALTER TABLE \`plans\` DROP COLUMN \`is_active\``);
         await queryRunner.query(`ALTER TABLE \`salons\` ADD \`logo_url\` varchar(255) NULL`);
         await queryRunner.query(`ALTER TABLE \`social_accounts\` ADD \`social_uuid\` varchar(255) NOT NULL`);
         await queryRunner.query(`ALTER TABLE \`social_accounts\` ADD \`social_name\` varchar(255) NOT NULL`);
@@ -54,19 +54,19 @@ export class UpdateProductsTable1761328627286 implements MigrationInterface {
         await queryRunner.query(`ALTER TABLE \`customers\` ADD \`created_by_user_uuid\` varchar(255) NULL`);
         await queryRunner.query(`ALTER TABLE \`customer_salons\` ADD \`uuid\` varchar(36) NOT NULL PRIMARY KEY`);
         await queryRunner.query(`ALTER TABLE \`customer_salons\` ADD \`role_name\` varchar(255) NOT NULL`);
-        await queryRunner.query(`ALTER TABLE \`products\` ADD \`status\` enum ('ACTIVE', 'INACTIVE', 'DRAFT') NOT NULL DEFAULT 'DRAFT'`);
-        await queryRunner.query(`ALTER TABLE \`products\` ADD \`type\` enum ('SUBSCRIPTION', 'ONE_TIME') NOT NULL DEFAULT 'SUBSCRIPTION'`);
-        await queryRunner.query(`ALTER TABLE \`products\` ADD \`price_cents\` int NOT NULL`);
-        await queryRunner.query(`ALTER TABLE \`products\` ADD \`currency\` varchar(3) NOT NULL DEFAULT 'USD'`);
-        await queryRunner.query(`ALTER TABLE \`products\` ADD \`billing_interval\` enum ('day', 'week', 'month', 'year') NULL`);
-        await queryRunner.query(`ALTER TABLE \`products\` ADD \`billing_interval_count\` int NULL DEFAULT '1'`);
-        await queryRunner.query(`ALTER TABLE \`products\` ADD \`stripe_product_id\` varchar(255) NULL`);
-        await queryRunner.query(`ALTER TABLE \`products\` ADD \`stripe_price_id\` varchar(255) NULL`);
-        await queryRunner.query(`ALTER TABLE \`products\` ADD \`max_salons\` int NULL`);
-        await queryRunner.query(`ALTER TABLE \`products\` ADD \`max_staff_per_salon\` int NULL`);
-        await queryRunner.query(`ALTER TABLE \`products\` ADD \`display_order\` int NOT NULL DEFAULT '0'`);
-        await queryRunner.query(`ALTER TABLE \`products\` ADD \`trial_period_days\` int NOT NULL DEFAULT '0'`);
-        await queryRunner.query(`ALTER TABLE \`products\` ADD \`created_by_uuid\` varchar(255) NULL`);
+        await queryRunner.query(`ALTER TABLE \`plans\` ADD \`status\` enum ('ACTIVE', 'INACTIVE', 'DRAFT') NOT NULL DEFAULT 'DRAFT'`);
+        await queryRunner.query(`ALTER TABLE \`plans\` ADD \`type\` enum ('SUBSCRIPTION', 'ONE_TIME') NOT NULL DEFAULT 'SUBSCRIPTION'`);
+        await queryRunner.query(`ALTER TABLE \`plans\` ADD \`price_cents\` int NOT NULL`);
+        await queryRunner.query(`ALTER TABLE \`plans\` ADD \`currency\` varchar(3) NOT NULL DEFAULT 'USD'`);
+        await queryRunner.query(`ALTER TABLE \`plans\` ADD \`billing_interval\` enum ('day', 'week', 'month', 'year') NULL`);
+        await queryRunner.query(`ALTER TABLE \`plans\` ADD \`billing_interval_count\` int NULL DEFAULT '1'`);
+        await queryRunner.query(`ALTER TABLE \`plans\` ADD \`stripe_plan_id\` varchar(255) NULL`);
+        await queryRunner.query(`ALTER TABLE \`plans\` ADD \`stripe_price_id\` varchar(255) NULL`);
+        await queryRunner.query(`ALTER TABLE \`plans\` ADD \`max_salons\` int NULL`);
+        await queryRunner.query(`ALTER TABLE \`plans\` ADD \`max_staff_per_salon\` int NULL`);
+        await queryRunner.query(`ALTER TABLE \`plans\` ADD \`display_order\` int NOT NULL DEFAULT '0'`);
+        await queryRunner.query(`ALTER TABLE \`plans\` ADD \`trial_period_days\` int NOT NULL DEFAULT '0'`);
+        await queryRunner.query(`ALTER TABLE \`plans\` ADD \`created_by_uuid\` varchar(255) NULL`);
         await queryRunner.query(`ALTER TABLE \`users\` ADD UNIQUE INDEX \`IDX_d1a16364b1f276e14e8e4cfc47\` (\`email_address\`)`);
         await queryRunner.query(`ALTER TABLE \`roles\` ADD UNIQUE INDEX \`IDX_ac35f51a0f17e3e1fe12112603\` (\`role_name\`)`);
         await queryRunner.query(`ALTER TABLE \`permissions\` ADD UNIQUE INDEX \`IDX_b990eff1fc3540798960d80e45\` (\`permission_name\`)`);
@@ -87,7 +87,7 @@ export class UpdateProductsTable1761328627286 implements MigrationInterface {
         await queryRunner.query(`ALTER TABLE \`customers\` ADD CONSTRAINT \`FK_8b58ff8891253c43c3bcf3b886d\` FOREIGN KEY (\`created_by_user_uuid\`) REFERENCES \`users\`(\`uuid\`) ON DELETE CASCADE ON UPDATE CASCADE`);
         await queryRunner.query(`ALTER TABLE \`customer_salons\` ADD CONSTRAINT \`FK_040e03d3d7fcb3ff3906d65f46d\` FOREIGN KEY (\`customer_uuid\`) REFERENCES \`customers\`(\`uuid\`) ON DELETE CASCADE ON UPDATE CASCADE`);
         await queryRunner.query(`ALTER TABLE \`customer_salons\` ADD CONSTRAINT \`FK_4cedc6dcff134b602ba138f6f61\` FOREIGN KEY (\`salon_uuid\`) REFERENCES \`salons\`(\`uuid\`) ON DELETE CASCADE ON UPDATE CASCADE`);
-        await queryRunner.query(`ALTER TABLE \`products\` ADD CONSTRAINT \`FK_bbd15d85d6768b8d45750a6e09b\` FOREIGN KEY (\`created_by_uuid\`) REFERENCES \`users\`(\`uuid\`) ON DELETE CASCADE ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE \`plans\` ADD CONSTRAINT \`FK_bbd15d85d6768b8d45750a6e09b\` FOREIGN KEY (\`created_by_uuid\`) REFERENCES \`users\`(\`uuid\`) ON DELETE CASCADE ON UPDATE NO ACTION`);
         await queryRunner.query(`ALTER TABLE \`role_permissions\` ADD CONSTRAINT \`FK_7be6db7b59fb622e6c16ba124c8\` FOREIGN KEY (\`role_uuid\`) REFERENCES \`roles\`(\`uuid\`) ON DELETE CASCADE ON UPDATE CASCADE`);
         await queryRunner.query(`ALTER TABLE \`role_permissions\` ADD CONSTRAINT \`FK_f985b194ff27dde81fb470c1920\` FOREIGN KEY (\`permission_uuid\`) REFERENCES \`permissions\`(\`uuid\`) ON DELETE NO ACTION ON UPDATE NO ACTION`);
     }
@@ -95,7 +95,7 @@ export class UpdateProductsTable1761328627286 implements MigrationInterface {
     public async down(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`ALTER TABLE \`role_permissions\` DROP FOREIGN KEY \`FK_f985b194ff27dde81fb470c1920\``);
         await queryRunner.query(`ALTER TABLE \`role_permissions\` DROP FOREIGN KEY \`FK_7be6db7b59fb622e6c16ba124c8\``);
-        await queryRunner.query(`ALTER TABLE \`products\` DROP FOREIGN KEY \`FK_bbd15d85d6768b8d45750a6e09b\``);
+        await queryRunner.query(`ALTER TABLE \`plans\` DROP FOREIGN KEY \`FK_bbd15d85d6768b8d45750a6e09b\``);
         await queryRunner.query(`ALTER TABLE \`customer_salons\` DROP FOREIGN KEY \`FK_4cedc6dcff134b602ba138f6f61\``);
         await queryRunner.query(`ALTER TABLE \`customer_salons\` DROP FOREIGN KEY \`FK_040e03d3d7fcb3ff3906d65f46d\``);
         await queryRunner.query(`ALTER TABLE \`customers\` DROP FOREIGN KEY \`FK_8b58ff8891253c43c3bcf3b886d\``);
@@ -116,19 +116,19 @@ export class UpdateProductsTable1761328627286 implements MigrationInterface {
         await queryRunner.query(`ALTER TABLE \`permissions\` DROP INDEX \`IDX_b990eff1fc3540798960d80e45\``);
         await queryRunner.query(`ALTER TABLE \`roles\` DROP INDEX \`IDX_ac35f51a0f17e3e1fe12112603\``);
         await queryRunner.query(`ALTER TABLE \`users\` DROP INDEX \`IDX_d1a16364b1f276e14e8e4cfc47\``);
-        await queryRunner.query(`ALTER TABLE \`products\` DROP COLUMN \`created_by_uuid\``);
-        await queryRunner.query(`ALTER TABLE \`products\` DROP COLUMN \`trial_period_days\``);
-        await queryRunner.query(`ALTER TABLE \`products\` DROP COLUMN \`display_order\``);
-        await queryRunner.query(`ALTER TABLE \`products\` DROP COLUMN \`max_staff_per_salon\``);
-        await queryRunner.query(`ALTER TABLE \`products\` DROP COLUMN \`max_salons\``);
-        await queryRunner.query(`ALTER TABLE \`products\` DROP COLUMN \`stripe_price_id\``);
-        await queryRunner.query(`ALTER TABLE \`products\` DROP COLUMN \`stripe_product_id\``);
-        await queryRunner.query(`ALTER TABLE \`products\` DROP COLUMN \`billing_interval_count\``);
-        await queryRunner.query(`ALTER TABLE \`products\` DROP COLUMN \`billing_interval\``);
-        await queryRunner.query(`ALTER TABLE \`products\` DROP COLUMN \`currency\``);
-        await queryRunner.query(`ALTER TABLE \`products\` DROP COLUMN \`price_cents\``);
-        await queryRunner.query(`ALTER TABLE \`products\` DROP COLUMN \`type\``);
-        await queryRunner.query(`ALTER TABLE \`products\` DROP COLUMN \`status\``);
+        await queryRunner.query(`ALTER TABLE \`plans\` DROP COLUMN \`created_by_uuid\``);
+        await queryRunner.query(`ALTER TABLE \`plans\` DROP COLUMN \`trial_period_days\``);
+        await queryRunner.query(`ALTER TABLE \`plans\` DROP COLUMN \`display_order\``);
+        await queryRunner.query(`ALTER TABLE \`plans\` DROP COLUMN \`max_staff_per_salon\``);
+        await queryRunner.query(`ALTER TABLE \`plans\` DROP COLUMN \`max_salons\``);
+        await queryRunner.query(`ALTER TABLE \`plans\` DROP COLUMN \`stripe_price_id\``);
+        await queryRunner.query(`ALTER TABLE \`plans\` DROP COLUMN \`stripe_plan_id\``);
+        await queryRunner.query(`ALTER TABLE \`plans\` DROP COLUMN \`billing_interval_count\``);
+        await queryRunner.query(`ALTER TABLE \`plans\` DROP COLUMN \`billing_interval\``);
+        await queryRunner.query(`ALTER TABLE \`plans\` DROP COLUMN \`currency\``);
+        await queryRunner.query(`ALTER TABLE \`plans\` DROP COLUMN \`price_cents\``);
+        await queryRunner.query(`ALTER TABLE \`plans\` DROP COLUMN \`type\``);
+        await queryRunner.query(`ALTER TABLE \`plans\` DROP COLUMN \`status\``);
         await queryRunner.query(`ALTER TABLE \`customer_salons\` DROP COLUMN \`role_name\``);
         await queryRunner.query(`ALTER TABLE \`customer_salons\` DROP COLUMN \`uuid\``);
         await queryRunner.query(`ALTER TABLE \`customers\` DROP COLUMN \`created_by_user_uuid\``);
@@ -143,10 +143,10 @@ export class UpdateProductsTable1761328627286 implements MigrationInterface {
         await queryRunner.query(`ALTER TABLE \`social_accounts\` DROP COLUMN \`social_name\``);
         await queryRunner.query(`ALTER TABLE \`social_accounts\` DROP COLUMN \`social_uuid\``);
         await queryRunner.query(`ALTER TABLE \`salons\` DROP COLUMN \`logo_url\``);
-        await queryRunner.query(`ALTER TABLE \`products\` ADD \`is_active\` tinyint NOT NULL DEFAULT '1'`);
-        await queryRunner.query(`ALTER TABLE \`products\` ADD \`category\` varchar(255) NULL`);
-        await queryRunner.query(`ALTER TABLE \`products\` ADD \`duration_minutes\` int NULL`);
-        await queryRunner.query(`ALTER TABLE \`products\` ADD \`price\` decimal NOT NULL`);
+        await queryRunner.query(`ALTER TABLE \`plans\` ADD \`is_active\` tinyint NOT NULL DEFAULT '1'`);
+        await queryRunner.query(`ALTER TABLE \`plans\` ADD \`category\` varchar(255) NULL`);
+        await queryRunner.query(`ALTER TABLE \`plans\` ADD \`duration_minutes\` int NULL`);
+        await queryRunner.query(`ALTER TABLE \`plans\` ADD \`price\` decimal NOT NULL`);
         await queryRunner.query(`ALTER TABLE \`customer_salons\` ADD \`joined_at\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)`);
         await queryRunner.query(`ALTER TABLE \`customer_salons\` ADD \`relationship_status\` varchar(255) NOT NULL DEFAULT 'ACTIVE'`);
         await queryRunner.query(`ALTER TABLE \`customer_salons\` ADD \`id\` int NOT NULL AUTO_INCREMENT`);

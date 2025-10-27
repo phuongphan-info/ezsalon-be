@@ -7,7 +7,7 @@ import { Salon } from '../salons/entities/salon.entity';
 import { Customer } from '../customers/entities/customer.entity';
 import { CustomerSalon } from '../customers/entities/customer-salon.entity';
 import { SocialAccount } from '../auth/entities/social-account.entity';
-import { Product } from '../products/entities/product.entity';
+import { Plan } from '../plans/entities/plan.entity';
 
 // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
 dotenv.config();
@@ -20,7 +20,7 @@ export const AppDataSource = new DataSource({
   username: process.env.DATABASE_USERNAME || 'root',
   password: process.env.DATABASE_PASSWORD || 'password',
   database: process.env.DATABASE_NAME || 'ezsalon',
-  entities: [User, Role, Permission, Salon, Customer, CustomerSalon, SocialAccount, Product],
+  entities: [User, Role, Permission, Salon, Customer, CustomerSalon, SocialAccount, Plan],
   migrations: ['src/migrations/*.ts'],
   migrationsTableName: 'migrations',
   synchronize: false,

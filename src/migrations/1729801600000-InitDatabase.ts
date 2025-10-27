@@ -140,11 +140,11 @@ export class InitDatabase1729801600000 implements MigrationInterface {
       ) ENGINE=InnoDB
     `);
 
-    // Create products table
+    // Create plans table
     await queryRunner.query(`
-      CREATE TABLE \`products\` (
+      CREATE TABLE \`plans\` (
         \`uuid\` varchar(36) NOT NULL,
-        \`product_name\` varchar(255) NOT NULL,
+        \`plan_name\` varchar(255) NOT NULL,
         \`description\` text NULL,
         \`price\` decimal(10,2) NOT NULL,
         \`duration_minutes\` int NULL,
@@ -218,7 +218,7 @@ export class InitDatabase1729801600000 implements MigrationInterface {
     await queryRunner.query(`ALTER TABLE \`role_permissions\` DROP FOREIGN KEY \`FK_role_permissions_role\``);
 
     // Drop tables in reverse order
-    await queryRunner.query(`DROP TABLE \`products\``);
+    await queryRunner.query(`DROP TABLE \`plans\``);
     await queryRunner.query(`DROP TABLE \`social_accounts\``);
     await queryRunner.query(`DROP TABLE \`customer_salons\``);
     await queryRunner.query(`DROP TABLE \`customers\``);

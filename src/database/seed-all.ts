@@ -1,11 +1,10 @@
 import { Permission } from '../roles/entities/permission.entity';
 import { Role } from '../roles/entities/role.entity';
 import { User } from '../users/entities/user.entity';
-import { Product } from '../products/entities/product.entity';
+import { Plan } from '../plans/entities/plan.entity';
 import { AppDataSource } from './data-source';
 import { seedPermissionsAndRoles } from './seed-permissions';
 import { seedUsersOnly } from './seed-users';
-import { seedProductsOnly } from './seed-products';
 
 async function seedAllData() {
   try {
@@ -27,12 +26,6 @@ async function seedAllData() {
     console.log('='.repeat(50));
     await seedUsersOnly(false, false); // Don't initialize/close DB
 
-    // 3. Seed products (depends on users)
-    console.log('\n' + '='.repeat(50));
-    console.log('Step 3: Seeding Products');
-    console.log('='.repeat(50));
-    await seedProductsOnly(false, false); // Don't initialize/close DB
-
     console.log('\n' + '='.repeat(50));
     console.log('🎉 Comprehensive seeding completed successfully!');
     console.log('='.repeat(50));
@@ -41,18 +34,18 @@ async function seedAllData() {
     const userRepository = AppDataSource.getRepository(User);
     const roleRepository = AppDataSource.getRepository(Role);
     const permissionRepository = AppDataSource.getRepository(Permission);
-    const productRepository = AppDataSource.getRepository(Product);
+    const planRepository = AppDataSource.getRepository(Plan);
 
     const totalUsers = await userRepository.count();
     const totalRoles = await roleRepository.count();
     const totalPermissions = await permissionRepository.count();
-    const totalProducts = await productRepository.count();
+    const totalPlans = await planRepository.count();
 
     console.log('\n📊 Final Summary:');
     console.log(`   • ${totalPermissions} permissions created`);
     console.log(`   • ${totalRoles} roles created`);
     console.log(`   • ${totalUsers} users created`);
-    console.log(`   • ${totalProducts} products created`);
+    console.log(`   • ${totalPlans} plans created`);
 
     console.log('\n📋 All users:');
     const allUsers = await userRepository.find({ relations: ['role'] });

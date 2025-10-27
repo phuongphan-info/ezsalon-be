@@ -11,7 +11,7 @@ import { RolesModule } from './roles/roles.module';
 import { SalonsModule } from './salons/salons.module';
 import { UsersModule } from './users/users.module';
 import { CustomersModule } from './customers/customers.module';
-import { ProductsModule } from './products/products.module';
+import { PlansModule } from './plans/plans.module';
 import { CommonModule } from './common/common.module';
 import { HealthModule } from './common/health.module';
 import { HeadersMiddleware } from './common/middleware/headers.middleware';
@@ -46,7 +46,7 @@ import { HeadersMiddleware } from './common/middleware/headers.middleware';
     RolesModule,
     SalonsModule,
     CustomersModule,
-    ProductsModule,
+    PlansModule,
     ChatModule,
     CommonModule,
     HealthModule,

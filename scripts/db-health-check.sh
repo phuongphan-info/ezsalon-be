@@ -34,7 +34,7 @@ fi
 
 # Check key tables
 echo "📋 Checking key tables..."
-TABLES=("users" "roles" "permissions" "salons" "customers" "products")
+TABLES=("users" "roles" "permissions" "salons" "customers" "plans")
 for table in "${TABLES[@]}"; do
     TABLE_EXISTS=$(docker-compose exec mysql mysql -u root -ppassword ezsalon -e "SHOW TABLES LIKE '$table';" | wc -l)
     if [ "$TABLE_EXISTS" -lt 2 ]; then

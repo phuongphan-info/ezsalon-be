@@ -14,40 +14,40 @@ import {
   IsPositive
 } from 'class-validator';
 import { 
-  PRODUCT_STATUS, 
-  PRODUCT_TYPE, 
+  PLAN_STATUS, 
+  PLAN_TYPE, 
   BILLING_INTERVAL 
-} from '../entities/product.entity';
+} from '../entities/plan.entity';
 
-export class CreateProductDto {
-  @ApiProperty({ description: 'Product name' })
+export class CreatePlanDto {
+  @ApiProperty({ description: 'Plan name' })
   @IsString()
   @IsNotEmpty()
   @Length(1, 255)
   name: string;
 
-  @ApiProperty({ description: 'Product description', required: false })
+  @ApiProperty({ description: 'Plan description', required: false })
   @IsString()
   @IsOptional()
   description?: string;
 
   @ApiProperty({ 
-    description: 'Product status', 
-    enum: PRODUCT_STATUS,
-    default: PRODUCT_STATUS.DRAFT
+    description: 'Plan status', 
+    enum: PLAN_STATUS,
+    default: PLAN_STATUS.DRAFT
   })
-  @IsEnum(PRODUCT_STATUS)
+  @IsEnum(PLAN_STATUS)
   @IsOptional()
-  status?: PRODUCT_STATUS;
+  status?: PLAN_STATUS;
 
   @ApiProperty({ 
-    description: 'Product type', 
-    enum: PRODUCT_TYPE,
-    default: PRODUCT_TYPE.SUBSCRIPTION
+    description: 'Plan type', 
+    enum: PLAN_TYPE,
+    default: PLAN_TYPE.SUBSCRIPTION
   })
-  @IsEnum(PRODUCT_TYPE)
+  @IsEnum(PLAN_TYPE)
   @IsOptional()
-  type?: PRODUCT_TYPE;
+  type?: PLAN_TYPE;
 
   @ApiProperty({ description: 'Price in cents (e.g., 1999 for $19.99)' })
   @IsNumber()
@@ -83,10 +83,10 @@ export class CreateProductDto {
   @IsOptional()
   billingIntervalCount?: number;
 
-  @ApiProperty({ description: 'Stripe product ID', required: false })
+  @ApiProperty({ description: 'Stripe plan ID', required: false })
   @IsString()
   @IsOptional()
-  stripeProductId?: string;
+  stripePlanId?: string;
 
   @ApiProperty({ description: 'Stripe price ID', required: false })
   @IsString()
@@ -132,35 +132,35 @@ export class CreateProductDto {
   displayOrder?: number;
 }
 
-export class UpdateProductDto {
-  @ApiProperty({ description: 'Product name', required: false })
+export class UpdatePlanDto {
+  @ApiProperty({ description: 'Plan name', required: false })
   @IsString()
   @Length(1, 255)
   @IsOptional()
   name?: string;
 
-  @ApiProperty({ description: 'Product description', required: false })
+  @ApiProperty({ description: 'Plan description', required: false })
   @IsString()
   @IsOptional()
   description?: string;
 
   @ApiProperty({ 
-    description: 'Product status', 
-    enum: PRODUCT_STATUS,
+    description: 'Plan status', 
+    enum: PLAN_STATUS,
     required: false
   })
-  @IsEnum(PRODUCT_STATUS)
+  @IsEnum(PLAN_STATUS)
   @IsOptional()
-  status?: PRODUCT_STATUS;
+  status?: PLAN_STATUS;
 
   @ApiProperty({ 
-    description: 'Product type', 
-    enum: PRODUCT_TYPE,
+    description: 'Plan type', 
+    enum: PLAN_TYPE,
     required: false
   })
-  @IsEnum(PRODUCT_TYPE)
+  @IsEnum(PLAN_TYPE)
   @IsOptional()
-  type?: PRODUCT_TYPE;
+  type?: PLAN_TYPE;
 
   @ApiProperty({ 
     description: 'Price in cents (e.g., 1999 for $19.99)', 
@@ -200,10 +200,10 @@ export class UpdateProductDto {
   @IsOptional()
   billingIntervalCount?: number;
 
-  @ApiProperty({ description: 'Stripe product ID', required: false })
+  @ApiProperty({ description: 'Stripe plan ID', required: false })
   @IsString()
   @IsOptional()
-  stripeProductId?: string;
+  stripePlanId?: string;
 
   @ApiProperty({ description: 'Stripe price ID', required: false })
   @IsString()
@@ -249,21 +249,21 @@ export class UpdateProductDto {
   displayOrder?: number;
 }
 
-export class ProductResponseDto {
-  @ApiProperty({ description: 'Product ID' })
+export class PlanResponseDto {
+  @ApiProperty({ description: 'Plan ID' })
   uuid: string;
 
-  @ApiProperty({ description: 'Product name' })
+  @ApiProperty({ description: 'Plan name' })
   name: string;
 
-  @ApiProperty({ description: 'Product description' })
+  @ApiProperty({ description: 'Plan description' })
   description?: string;
 
-  @ApiProperty({ description: 'Product status', enum: PRODUCT_STATUS })
-  status: PRODUCT_STATUS;
+  @ApiProperty({ description: 'Plan status', enum: PLAN_STATUS })
+  status: PLAN_STATUS;
 
-  @ApiProperty({ description: 'Product type', enum: PRODUCT_TYPE })
-  type: PRODUCT_TYPE;
+  @ApiProperty({ description: 'Plan type', enum: PLAN_TYPE })
+  type: PLAN_TYPE;
 
   @ApiProperty({ description: 'Price in cents' })
   priceCents: number;
@@ -277,17 +277,11 @@ export class ProductResponseDto {
   @ApiProperty({ description: 'Billing interval count' })
   billingIntervalCount?: number;
 
-  @ApiProperty({ description: 'Stripe product ID' })
-  stripeProductId?: string;
+  @ApiProperty({ description: 'Stripe plan ID' })
+  stripePlanId?: string;
 
   @ApiProperty({ description: 'Stripe price ID' })
   stripePriceId?: string;
-
-  @ApiProperty({ description: 'Product features' })
-  features?: Record<string, any>;
-
-  @ApiProperty({ description: 'Product metadata' })
-  metadata?: Record<string, any>;
 
   @ApiProperty({ description: 'Trial period days' })
   trialPeriodDays?: number;
@@ -297,9 +291,6 @@ export class ProductResponseDto {
 
   @ApiProperty({ description: 'Maximum staff per salon' })
   maxStaffPerSalon?: number;
-
-  @ApiProperty({ description: 'Includes advanced features' })
-  includesAdvancedFeatures: boolean;
 
   @ApiProperty({ description: 'Display order' })
   displayOrder: number;
@@ -311,14 +302,14 @@ export class ProductResponseDto {
   updatedAt: Date;
 }
 
-export class PublicProductResponseDto {
-  @ApiProperty({ description: 'Product UUID' })
+export class PublicPlanResponseDto {
+  @ApiProperty({ description: 'Plan UUID' })
   uuid: string;
 
-  @ApiProperty({ description: 'Product name' })
+  @ApiProperty({ description: 'Plan name' })
   name: string;
 
-  @ApiProperty({ description: 'Product description' })
+  @ApiProperty({ description: 'Plan description' })
   description?: string;
 
   @ApiProperty({ description: 'Price in cents' })
