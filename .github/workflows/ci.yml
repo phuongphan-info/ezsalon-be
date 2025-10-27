@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, dev]
   pull_request:
-    branches: [main, develop]
+    branches: [main, dev]
 
 jobs:
   # CI Job - Testing and validation
@@ -43,12 +43,12 @@ jobs:
       #   run: npm run test:e2e
       #   continue-on-error: true # Allow e2e tests to fail without blocking deployment
 
-  # CD Job - Deploy to production (only on main branch)
+  # CD Job - Deploy to dev (only on dev branch)
   deploy:
     runs-on: ubuntu-latest
     name: Deploy to VPS
     needs: test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
 
     steps:
       - name: Deploy to VPS
@@ -59,16 +59,20 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd ~/app
-            echo "🔄 Pulling latest changes..."
-            git reset --hard origin/main
+            echo "🔄 Reset origin/dev..."
+            git reset --hard origin/dev
             
-            git pull origin main
+            echo "🔄 Pulling latest changes..."
+            git pull origin dev
             
             echo "📦 Stopping current services..."
-            make down-prod
+            make down-dev
+            
+            echo "Start services..."
+            make build
             
             echo "🚀 Starting services..."
-            make up-prod
+            make up-dev
             
             echo "🔄 Running database migrations..."
             make migration-run

@@ -2,6 +2,10 @@ up:
 	docker-compose up --remove-orphans
 up-d:
 	docker-compose up -d --remove-orphans
+up-dev:
+	docker compose -f docker-compose.dev.yml up --remove-orphans
+up-dev-d:
+	docker compose -f docker-compose.dev.yml up -d --remove-orphans
 up-prod:
 	docker compose -f docker-compose.prod.yml up --remove-orphans
 up-prod-d:
@@ -14,11 +18,15 @@ install:
 	docker-compose run app npm install
 down:
 	docker-compose down
+down-dev:
+	docker compose -f docker-compose.dev.yml down
 down-prod:
 	docker compose -f docker-compose.prod.yml down
 restart:
 	docker-compose down
 	docker-compose up -d --remove-orphans
+bash-dev:
+	docker compose -f docker-compose.dev.yml exec app bash || echo "App not running in dev compose"
 bash-prod:
 	docker compose -f docker-compose.prod.yml exec app bash || echo "App not running in prod compose"
 bash:
