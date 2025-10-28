@@ -65,7 +65,7 @@ export class UpdatePlansTable1761328627286 implements MigrationInterface {
         await queryRunner.query(`ALTER TABLE \`plans\` ADD \`max_salons\` int NULL`);
         await queryRunner.query(`ALTER TABLE \`plans\` ADD \`max_staff_per_salon\` int NULL`);
         await queryRunner.query(`ALTER TABLE \`plans\` ADD \`display_order\` int NOT NULL DEFAULT '0'`);
-        await queryRunner.query(`ALTER TABLE \`plans\` ADD \`trial_period_days\` int NOT NULL DEFAULT '0'`);
+        await queryRunner.query(`ALTER TABLE \`plans\` ADD \`trial_period_days\` int NOT NULL DEFAULT '7'`);
         await queryRunner.query(`ALTER TABLE \`plans\` ADD \`created_by_uuid\` varchar(255) NULL`);
         await queryRunner.query(`ALTER TABLE \`users\` ADD UNIQUE INDEX \`IDX_d1a16364b1f276e14e8e4cfc47\` (\`email_address\`)`);
         await queryRunner.query(`ALTER TABLE \`roles\` ADD UNIQUE INDEX \`IDX_ac35f51a0f17e3e1fe12112603\` (\`role_name\`)`);

@@ -37,8 +37,6 @@ seed-permissions:
 	docker-compose exec app npm run seed:permissions
 seed-users:
 	docker-compose exec app npm run seed:users
-seed-products:
-	docker-compose exec app npm run seed:products
 migration-run:
 	docker-compose exec app npm run migration:run
 migration-revert:
@@ -101,5 +99,5 @@ test-e2e-auth-roles:
 	docker-compose exec app npm run test:e2e:auth-roles
 test-e2e-customers:
 	docker-compose exec app npm run test:e2e:customers
-test-e2e-products:
-	docker-compose exec app npm run test:e2e:products
+test-e2e-plans:
+	docker-compose exec app npm run test:e2e:plans

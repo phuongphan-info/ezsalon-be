@@ -25,6 +25,64 @@
 
 EZSalon
 
+## Deployment (Production)
+
+For production we do NOT run MySQL inside the application compose stack. Instead, point the app to an external managed MySQL (RDS, Cloud SQL, etc.). A separate compose file `docker-compose.prod.yml` is provided.
+
+### Files Added
+* `docker-compose.prod.yml` – production services (app + optional redis profile, no MySQL)
+* `.env.production.example` – template for required environment variables
+* New Makefile targets: `make build-prod`, `make up-prod`, `make down-prod`, `make bash-prod`
+
+### Usage
+1. Copy `.env.production.example` to `.env.production` and fill in real secrets.
+2. Build the image:
+  ```bash
+  make build-prod
+  ```
+3. Start the app (without Redis):
+  ```bash
+  make up-prod
+  ```
+4. Start the app with an embedded Redis (for testing only):
+  ```bash
+  docker compose -f docker-compose.prod.yml --profile with-redis up -d
+  ```
+5. Exec into the running container:
+  ```bash
+  make bash-prod
+  ```
+
+### Required Environment Variables
+Provide these via `.env.production` or your orchestrator (Kubernetes secrets, ECS task defs, etc.):
+
+| Variable | Description |
+|----------|-------------|
+| DATABASE_HOST | External MySQL host |
+| DATABASE_PORT | MySQL port (default 3306) |
+| DATABASE_USERNAME | MySQL user |
+| DATABASE_PASSWORD | MySQL password |
+| DATABASE_NAME | Database name (ezsalon) |
+| REDIS_HOST | Redis host (if used) |
+| REDIS_PORT | Redis port (default 6379) |
+| JWT_SECRET | Secure JWT secret |
+| STRIPE_SECRET_KEY | Live Stripe secret key |
+| STRIPE_WEBHOOK_SECRET | Stripe webhook signing secret |
+
+If Redis is managed externally remove the redis service and just set `REDIS_HOST`/`REDIS_PORT`.
+
+### Migration & Seeding in Production
+Run migrations after deploy (do NOT run seeds automatically in production unless intentional):
+```bash
+docker compose -f docker-compose.prod.yml exec app npm run migration:run
+```
+
+### Notes
+* The development compose file still bundles MySQL + Redis for convenience.
+* Production image starts with `npm run start:prod` and does NOT reinstall dependencies at runtime.
+* Remove bind mounts for deterministic builds.
+* Adjust health checks and observability separately (see `docs/HEALTH_CHECKS.md`).
+
 ## Support
 
 Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).

@@ -12,6 +12,7 @@ import { SalonsModule } from './salons/salons.module';
 import { UsersModule } from './users/users.module';
 import { CustomersModule } from './customers/customers.module';
 import { PlansModule } from './plans/plans.module';
+import { PaymentsModule } from './payments/payments.module';
 import { CommonModule } from './common/common.module';
 import { HealthModule } from './common/health.module';
 import { HeadersMiddleware } from './common/middleware/headers.middleware';
@@ -31,8 +32,8 @@ import { HeadersMiddleware } from './common/middleware/headers.middleware';
       password: process.env.DATABASE_PASSWORD || 'password',
       database: process.env.DATABASE_NAME || 'ezsalon',
       autoLoadEntities: true,
-      synchronize: false, // set to false in production
-      logging: false,
+      synchronize: false, // set to false in planion
+      logging: true,
     }),
     PassportModule,
     // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
@@ -47,6 +48,7 @@ import { HeadersMiddleware } from './common/middleware/headers.middleware';
     SalonsModule,
     CustomersModule,
     PlansModule,
+    PaymentsModule,
     ChatModule,
     CommonModule,
     HealthModule,
