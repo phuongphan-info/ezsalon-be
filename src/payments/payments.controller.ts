@@ -8,12 +8,18 @@ import {
   Req,
   UseGuards,
   Query,
+  NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
 import {
   CreateCheckoutSessionDto,
   CheckoutSessionResponse,
+  PaymentHistoryResponseDto,
+  PaymentHistoryQueryDto,
+  SubscriptionHistoryResponseDto,
+  SubscriptionHistoryQueryDto,
 } from './payments.dto';
 import { CustomerJwtAuthGuard } from 'src/customers/guards/customer-jwt-auth.guard';
 import { CurrentCustomer } from 'src/customers/decorators/current-customer.decorator';
@@ -21,6 +27,8 @@ import { CurrentCustomer } from 'src/customers/decorators/current-customer.decor
 @ApiTags('payments')
 @Controller('payments')
 export class PaymentsController {
+  private readonly logger = new Logger(PaymentsController.name);
+
   constructor(private readonly paymentsService: PaymentsService) {}
   
   @Post('checkout')
@@ -38,6 +46,40 @@ export class PaymentsController {
       dto.cancelUrl,
       currentCustomer?.customer,
     );
+  }
+
+  @Get('histories')
+  @UseGuards(CustomerJwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get payment history for current customer' })
+  @ApiResponse({ status: 200, type: PaymentHistoryResponseDto })
+  async getPaymentHistory(
+    @Query() query: PaymentHistoryQueryDto,
+    @CurrentCustomer() currentCustomer: any,
+  ): Promise<PaymentHistoryResponseDto> {
+    const customer = currentCustomer?.customer;
+    if (!customer?.uuid) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    return await this.paymentsService.getCustomerPaymentHistory(customer.uuid, query);
+  }
+
+  @Get('subscriptions/histories')
+  @UseGuards(CustomerJwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get subscription history for current customer' })
+  @ApiResponse({ status: 200, type: SubscriptionHistoryResponseDto })
+  async getSubscriptionHistory(
+    @Query() query: SubscriptionHistoryQueryDto,
+    @CurrentCustomer() currentCustomer: any,
+  ): Promise<SubscriptionHistoryResponseDto> {
+    const customer = currentCustomer?.customer;
+    if (!customer?.uuid) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    return await this.paymentsService.getCustomerSubscriptionHistory(customer.uuid, query);
   }
   
   @Get('session/:sessionId')

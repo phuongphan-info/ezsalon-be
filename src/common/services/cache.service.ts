@@ -13,13 +13,15 @@ export class CacheService {
    * When an entity is modified, all related caches will be cleared
    */
   private readonly relatedCacheMap: Record<string, string[]> = {
-    customers: ['customers', 'customer_salons', 'salons'],
+    customers: ['customers', 'customer_salons', 'salons', 'payments', 'subscriptions'],
     salons: ['salons', 'customer_salons'],
     customer_salons: ['customer_salons', 'salons', 'customers'],
     users: ['users'],
     roles: ['roles', 'permissions'],
     permissions: ['permissions', 'roles'],
-    plans: ['plans'],
+    plans: ['plans', 'subscriptions', 'payments'],
+    subscriptions: ['subscriptions', 'payments', 'plans', 'customers'],
+    payments: ['payments', 'subscriptions', 'plans', 'customers'],
   };
 
   constructor(

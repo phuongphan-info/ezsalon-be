@@ -5,11 +5,20 @@ import { PlansService } from '../plans/plans.service';
 import { CustomersService } from 'src/customers/customers.service';
 import { StripeService } from './stripe.service';
 import { SubscriptionService } from './subscription.service';
-import { SUBSCRIPTION_STATUS } from './entities/subscription.entity';
+import { Subscription, SUBSCRIPTION_STATUS, SUBSCRIPTION_TABLE_NAME } from './entities/subscription.entity';
 import { Customer } from 'src/customers/entities/customer.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Payment, PAYMENT_STATUS } from './entities/payment.entity';
+import { Payment, PAYMENT_STATUS, PAYMENT_TABLE_NAME } from './entities/payment.entity';
+import {
+  PaymentHistoryItemDto,
+  PaymentHistoryResponseDto,
+  PaymentHistoryQueryDto,
+  SubscriptionHistoryResponseDto,
+  SubscriptionHistoryItemDto,
+  SubscriptionHistoryQueryDto,
+} from './payments.dto';
+import { CacheService } from '../common/services/cache.service';
 
 @Injectable()
 export class PaymentsService {
@@ -18,12 +27,15 @@ export class PaymentsService {
 
   constructor(
     private readonly configService: ConfigService,
+    private readonly cacheService: CacheService,
     private readonly plansService: PlansService,
     private readonly customerService: CustomersService,
     private readonly stripeService: StripeService,
     private readonly subscriptionService: SubscriptionService,
     @InjectRepository(Payment)
     private readonly paymentRepository: Repository<Payment>,
+    @InjectRepository(Subscription)
+    private readonly subscriptionRepository: Repository<Subscription>,
   ) {
     const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
     if (!secretKey) {
@@ -33,6 +45,224 @@ export class PaymentsService {
     this.stripe = new Stripe(secretKey, {
       apiVersion: '2025-02-24.acacia',
     });
+  }
+
+  private async clearPaymentCaches(): Promise<void> {
+    await this.cacheService.clearRelatedCaches(PAYMENT_TABLE_NAME);
+  }
+
+  private async clearSubscriptionCaches(): Promise<void> {
+    await this.cacheService.clearRelatedCaches(SUBSCRIPTION_TABLE_NAME);
+  }
+
+  async getCustomerPaymentHistory(
+    customerUuid: string,
+    query: PaymentHistoryQueryDto,
+  ): Promise<PaymentHistoryResponseDto> {
+    const page = query?.page ?? 1;
+    const limit = query?.limit ?? 10;
+    const cacheFilters: Record<string, any> = {
+      customerUuid,
+      page,
+      limit,
+    };
+
+    if (query?.paymentStatus) {
+      cacheFilters.paymentStatus = query.paymentStatus;
+    }
+
+    if (query?.subscriptionStatus) {
+      cacheFilters.subscriptionStatus = query.subscriptionStatus;
+    }
+
+    if (query?.planUuid) {
+      cacheFilters.planUuid = query.planUuid;
+    }
+
+    return await this.cacheService.caching(
+      PAYMENT_TABLE_NAME,
+      cacheFilters,
+      async () => {
+        const skip = (page - 1) * limit;
+
+        const qb = this.paymentRepository
+          .createQueryBuilder('payment')
+          .leftJoinAndSelect('payment.subscription', 'subscription')
+          .where('payment.customerUuid = :customerUuid', { customerUuid })
+          .orderBy('payment.createdAt', 'DESC')
+          .addOrderBy('payment.uuid', 'DESC');
+
+        if (query?.paymentStatus) {
+          qb.andWhere('payment.status = :paymentStatus', { paymentStatus: query.paymentStatus });
+        }
+
+        if (query?.subscriptionStatus) {
+          qb.andWhere('subscription.status = :subscriptionStatus', {
+            subscriptionStatus: query.subscriptionStatus,
+          });
+        }
+
+        if (query?.planUuid) {
+          qb.andWhere('subscription.planUuid = :planUuid', { planUuid: query.planUuid });
+        }
+
+        const [payments, total] = await qb.skip(skip).take(limit).getManyAndCount();
+
+        const items = payments.map((payment) => {
+          const subscription = payment.subscription
+            ? {
+                uuid: payment.subscription.uuid,
+                stripeSubscriptionUuid: payment.subscription.stripeSubscriptionUuid,
+                planUuid: payment.subscription.planUuid,
+                status: payment.subscription.status,
+                currentPeriodEndAt: payment.subscription.currentPeriodEndAt ?? null,
+              }
+            : null;
+
+          return {
+            uuid: payment.uuid,
+            stripeInvoiceUuid: payment.stripeInvoiceUuid,
+            stripePaymentIntentUuid: payment.stripePaymentIntentUuid,
+            amountPaid: payment.amountPaid,
+            currency: payment.currency,
+            status: payment.status,
+            paidAt: payment.paidAt ?? null,
+            createdAt: payment.createdAt,
+            subscription,
+          } satisfies PaymentHistoryItemDto;
+        });
+
+        return new PaymentHistoryResponseDto(items, total, page, limit);
+      },
+    );
+  }
+
+  async getCustomerSubscriptionHistory(
+    customerUuid: string,
+    query: SubscriptionHistoryQueryDto,
+  ): Promise<SubscriptionHistoryResponseDto> {
+    const page = query?.page ?? 1;
+    const limit = query?.limit ?? 10;
+    const cacheFilters: Record<string, any> = {
+      customerUuid,
+      page,
+      limit,
+    };
+
+    if (query?.status) {
+      cacheFilters.status = query.status;
+    }
+
+    if (query?.planUuid) {
+      cacheFilters.planUuid = query.planUuid;
+    }
+
+    if (query?.startFrom) {
+      cacheFilters.startFrom = query.startFrom;
+    }
+
+    if (query?.startTo) {
+      cacheFilters.startTo = query.startTo;
+    }
+
+    if (query?.endFrom) {
+      cacheFilters.endFrom = query.endFrom;
+    }
+
+    if (query?.endTo) {
+      cacheFilters.endTo = query.endTo;
+    }
+
+    return await this.cacheService.caching(
+      SUBSCRIPTION_TABLE_NAME,
+      cacheFilters,
+      async () => {
+        const skip = (page - 1) * limit;
+
+        const qb = this.subscriptionRepository
+          .createQueryBuilder('subscription')
+          .leftJoinAndSelect('subscription.plan', 'plan')
+          .where('subscription.customerUuid = :customerUuid', { customerUuid })
+          .orderBy('subscription.createdAt', 'DESC')
+          .addOrderBy('subscription.uuid', 'DESC');
+
+        if (query?.status) {
+          qb.andWhere('subscription.status = :status', { status: query.status });
+        }
+
+        if (query?.planUuid) {
+          qb.andWhere('subscription.planUuid = :planUuid', { planUuid: query.planUuid });
+        }
+
+        if (query?.startFrom) {
+          qb.andWhere('subscription.currentPeriodStartAt >= :startFrom', {
+            startFrom: new Date(query.startFrom),
+          });
+        }
+
+        if (query?.startTo) {
+          qb.andWhere('subscription.currentPeriodStartAt <= :startTo', {
+            startTo: new Date(query.startTo),
+          });
+        }
+
+        if (query?.endFrom) {
+          qb.andWhere('subscription.currentPeriodEndAt >= :endFrom', {
+            endFrom: new Date(query.endFrom),
+          });
+        }
+
+        if (query?.endTo) {
+          qb.andWhere('subscription.currentPeriodEndAt <= :endTo', {
+            endTo: new Date(query.endTo),
+          });
+        }
+
+        const [subscriptions, total] = await qb.skip(skip).take(limit).getManyAndCount();
+
+        const items = subscriptions.map((subscription) => {
+          const plan = subscription.plan
+            ? {
+                uuid: subscription.plan.uuid,
+                name: subscription.plan.name,
+                description: subscription.plan.description ?? null,
+                status: subscription.plan.status,
+                type: subscription.plan.type,
+                priceCents: subscription.plan.priceCents,
+                currency: subscription.plan.currency,
+                billingInterval: subscription.plan.billingInterval ?? null,
+                billingIntervalCount: subscription.plan.billingIntervalCount ?? null,
+                trialPeriodDays: subscription.plan.trialPeriodDays ?? null,
+                stripePlanId: subscription.plan.stripePlanId ?? null,
+                stripePriceId: subscription.plan.stripePriceId ?? null,
+                maxSalons: subscription.plan.maxSalons ?? null,
+                maxStaffPerSalon: subscription.plan.maxStaffPerSalon ?? null,
+              }
+            : null;
+
+          return {
+            uuid: subscription.uuid,
+            stripeSubscriptionUuid: subscription.stripeSubscriptionUuid,
+            planUuid: subscription.planUuid,
+            status: subscription.status,
+            currentPeriodStartAt: subscription.currentPeriodStartAt ?? null,
+            currentPeriodEndAt: subscription.currentPeriodEndAt ?? null,
+            trialStartAt: subscription.trialStartAt ?? null,
+            trialEndAt: subscription.trialEndAt ?? null,
+            cancelAt: subscription.cancelAt ?? null,
+            cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+            canceledAt: subscription.canceledAt ?? null,
+            paidAt: subscription.paidAt ?? null,
+            latestInvoiceId: subscription.latestInvoiceId ?? null,
+            createdAt: subscription.createdAt,
+            updatedAt: subscription.updatedAt,
+            plan,
+          } satisfies SubscriptionHistoryItemDto;
+        });
+
+        return new SubscriptionHistoryResponseDto(items, total, page, limit);
+      },
+    );
   }
 
   private toDateFromUnix(timestamp?: number | null): Date | null {
@@ -126,6 +356,8 @@ export class PaymentsService {
       paidAt,
       latestInvoiceId,
     });
+
+    await this.clearSubscriptionCaches();
   }
 
   private async syncStripeSubscription(stripeSubscriptionUuid: string): Promise<void> {
@@ -151,6 +383,7 @@ export class PaymentsService {
         await this.syncStripeSubscription(stripeSubscriptionUuid);
         await this.subscriptionService.updateStatus(stripeSubscriptionUuid, status);
       }
+      await this.clearSubscriptionCaches();
     } catch (error) {
       this.logger.error(`Failed to update subscription ${stripeSubscriptionUuid} status to ${status}`, error);
     }
@@ -276,6 +509,7 @@ export class PaymentsService {
     const subscription = event.data.object as Stripe.Subscription;
     try {
       await this.subscriptionService.removeByStripeSubscriptionUuid(subscription.id);
+      await this.clearSubscriptionCaches();
     } catch (error) {
       this.logger.error(`Failed to remove subscription ${subscription.id} after deletion event`, error);
     }
@@ -372,6 +606,7 @@ export class PaymentsService {
       }
 
       await this.paymentRepository.save(paymentRecord);
+      await this.clearPaymentCaches();
     } catch (error) {
       this.logger.error(`Failed to persist payment intent ${paymentIntent.id} to payments table`, error);
     }

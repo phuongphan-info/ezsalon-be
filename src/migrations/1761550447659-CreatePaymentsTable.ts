@@ -12,11 +12,13 @@ export class CreatePaymentsTable1761550447659 implements MigrationInterface {
           name: 'payments',
           columns: [
             {
-              name: 'id',
-              type: 'int',
+              name: 'uuid',
+              type: 'char',
+              length: '36',
               isPrimary: true,
               isGenerated: true,
-              generationStrategy: 'increment',
+              generationStrategy: 'uuid',
+              default: '(UUID())',
             },
             {
               name: 'customer_uuid',

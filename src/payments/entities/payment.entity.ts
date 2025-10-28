@@ -26,8 +26,8 @@ export enum PAYMENT_STATUS {
 @Index(['stripeInvoiceUuid'])
 @Index(['customerUuid'])
 export class Payment {
-  @PrimaryGeneratedColumn()
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  uuid: string;
 
   @Column({ name: 'customer_uuid', type: 'char', length: 36 })
   customerUuid: string;

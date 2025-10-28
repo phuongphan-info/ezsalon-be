@@ -70,9 +70,9 @@ jobs:
             
             echo "Start services..."
             make build
-            
+
             echo "🚀 Starting services..."
-            make up-dev
+            make up-dev-d
             
             echo "🔄 Running database migrations..."
             make migration-run
