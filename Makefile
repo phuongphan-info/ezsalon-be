@@ -101,3 +101,5 @@ test-e2e-customers:
 	docker-compose exec app npm run test:e2e:customers
 test-e2e-plans:
 	docker-compose exec app npm run test:e2e:plans
+test-e2e-payments:
+	docker-compose exec app npm run test:e2e:payments

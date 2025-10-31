@@ -1,6 +1,9 @@
 import { Plan, PLAN_STATUS, PLAN_TYPE, BILLING_INTERVAL } from '../plans/entities/plan.entity';
 import { User } from '../users/entities/user.entity';
 import { AppDataSource } from './data-source';
+import { resolveDatabaseConfig } from './database-env.util';
+
+const { useTest } = resolveDatabaseConfig();
 
 export async function seedPlansOnly(
   shouldInitializeDb = true,
@@ -121,11 +124,15 @@ export async function seedPlansOnly(
 if (require.main === module) {
   seedPlansOnly()
     .then(() => {
-      console.log('✅ Plans seeding completed successfully!');
+      if(!useTest) {
+        console.log('✅ Plans seeding completed successfully!');
+      }
       process.exit(0);
     })
     .catch((error) => {
-      console.error('❌ Plans seeding failed:', error);
+      if(!useTest) {
+        console.error('❌ Plans seeding failed:', error);
+      }
       process.exit(1);
     });
 }

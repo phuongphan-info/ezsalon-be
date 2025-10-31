@@ -1,5 +1,5 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -16,6 +16,10 @@ import { PaymentsModule } from './payments/payments.module';
 import { CommonModule } from './common/common.module';
 import { HealthModule } from './common/health.module';
 import { HeadersMiddleware } from './common/middleware/headers.middleware';
+import { resolveDatabaseConfig } from './database/database-env.util';
+
+const { host: dbHost, port: dbPort, username: dbUsername, password: dbPassword, database: dbName, useTest } =
+  resolveDatabaseConfig();
 
 @Module({
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
@@ -26,14 +30,14 @@ import { HeadersMiddleware } from './common/middleware/headers.middleware';
     }),
     TypeOrmModule.forRoot({
       type: 'mysql',
-      host: process.env.DATABASE_HOST || 'localhost',
-      port: parseInt(process.env.DATABASE_PORT || '3306', 10),
-      username: process.env.DATABASE_USERNAME || 'root',
-      password: process.env.DATABASE_PASSWORD || 'password',
-      database: process.env.DATABASE_NAME || 'ezsalon',
+      host: dbHost,
+      port: dbPort,
+      username: dbUsername,
+      password: dbPassword,
+      database: dbName,
       autoLoadEntities: true,
       synchronize: false, // set to false in planion
-      logging: true,
+      logging: useTest ? false : true,
     }),
     PassportModule,
     // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access

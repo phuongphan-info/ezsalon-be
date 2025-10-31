@@ -2,6 +2,9 @@ import { Permission } from '../roles/entities/permission.entity';
 import { Role } from '../roles/entities/role.entity';
 import { User } from '../users/entities/user.entity';
 import { AppDataSource } from './data-source';
+import { resolveDatabaseConfig } from './database-env.util';
+
+const { useTest } = resolveDatabaseConfig();
 
 export const seedPermissions = [
   // users
@@ -270,12 +273,16 @@ async function seedPermissionsAndRoles(
   shouldCloseDb = true,
 ) {
   try {
-    console.log('🌱 Starting permissions and roles seeding (reset mode)...');
+    if(!useTest) {
+      console.log('🌱 Starting permissions and roles seeding (reset mode)...');
+    }
 
     // Initialize the data source only if requested
     if (shouldInitializeDb) {
       await AppDataSource.initialize();
-      console.log('✅ Database connection established');
+      if(!useTest) {
+        console.log('✅ Database connection established');
+      }
     }
 
     const roleRepository = AppDataSource.getRepository(Role);
@@ -283,14 +290,18 @@ async function seedPermissionsAndRoles(
     const userRepository = AppDataSource.getRepository(User);
 
     // 1. Clear existing permissions and roles (reset mode)
-    console.log('🗑️  Clearing existing roles and permissions...');
+    if(!useTest) {
+      console.log('🗑️  Clearing existing roles and permissions...');
+    }
 
     // We need to handle foreign key constraints properly
     // First, find and remove all users that reference roles
     const existingUsers = await userRepository.find();
     if (existingUsers.length > 0) {
       await userRepository.remove(existingUsers);
-      console.log('✅ Cleared all existing users (to remove role references)');
+      if(!useTest) {
+        console.log('✅ Cleared all existing users (to remove role references)');
+      }
     }
 
     // Then clear role-permission relationships by finding and removing roles with relations
@@ -299,31 +310,41 @@ async function seedPermissionsAndRoles(
     });
     if (existingRoles.length > 0) {
       await roleRepository.remove(existingRoles);
-      console.log(
-        '✅ Cleared all existing roles and their permission relationships',
-      );
+      if(!useTest) {
+        console.log(
+          '✅ Cleared all existing roles and their permission relationships',
+        );
+      }
     }
 
     // Finally clear all permissions
     const existingPermissions = await permissionRepository.find();
     if (existingPermissions.length > 0) {
       await permissionRepository.remove(existingPermissions);
-      console.log('✅ Cleared all existing permissions');
+      if(!useTest) {
+        console.log('✅ Cleared all existing permissions');
+      }
     }
 
     // 2. Seed Permissions
-    console.log('🔐 Creating permissions...');
+    if(!useTest) {
+      console.log('🔐 Creating permissions...');
+    }
     const permissionMap = new Map<string, Permission>();
 
     for (const permData of seedPermissions) {
       const permission = permissionRepository.create(permData);
       await permissionRepository.save(permission);
-      console.log(`✅ Created permission: ${permData.name}`);
+      if(!useTest) {
+        console.log(`✅ Created permission: ${permData.name}`);
+      }
       permissionMap.set(permission.name, permission);
     }
 
     // 3. Seed Roles with Permissions
-    console.log('🎭 Creating roles with permissions...');
+    if(!useTest) {
+      console.log('🎭 Creating roles with permissions...');
+    }
 
     for (const roleData of seedRoles) {
       const { permissions: permissionNames, ...roleInfo } = roleData;
@@ -336,33 +357,47 @@ async function seedPermissionsAndRoles(
       const role = roleRepository.create(roleInfo);
       role.permissions = rolePermissions;
       await roleRepository.save(role);
-      console.log(
-        `✅ Created role: ${roleData.name} with ${rolePermissions.length} permissions`,
-      );
+      if(!useTest) {
+        console.log(
+          `✅ Created role: ${roleData.name} with ${rolePermissions.length} permissions`,
+        );
+      }
     }
 
-    console.log('🎉 Permissions and roles reset completed successfully!');
+    if(!useTest) {
+      console.log('🎉 Permissions and roles reset completed successfully!');
+    }
 
     // Display summary
     const totalPermissions = await permissionRepository.count();
     const totalRoles = await roleRepository.count();
 
-    console.log('\n📊 Reset Summary:');
-    console.log(`   • ${totalPermissions} permissions created`);
-    console.log(`   • ${totalRoles} roles created`);
+    if(!useTest) {
+      console.log('\n📊 Reset Summary:');
+      console.log(`   • ${totalPermissions} permissions created`);
+      console.log(`   • ${totalRoles} roles created`);
+    }
 
-    console.log('\n🎭 Created roles:');
+    if(!useTest) {
+      console.log('\n🎭 Created roles:');
+    }
     const allRoles = await roleRepository.find({ relations: ['permissions'] });
     allRoles.forEach((role) => {
-      console.log(
-        `   • ${role.displayName} (${role.name}) - ${role.permissions.length} permissions`,
-      );
+      if(!useTest) {
+        console.log(
+          `   • ${role.displayName} (${role.name}) - ${role.permissions.length} permissions`,
+        );
+      }
     });
 
-    console.log('\n🔐 Created permissions:');
+    if(!useTest) {
+      console.log('\n🔐 Created permissions:');
+    }
     const allPermissions = await permissionRepository.find();
     allPermissions.forEach((permission) => {
-      console.log(`   • ${permission.name} - ${permission.displayName}`);
+      if(!useTest) {
+        console.log(`   • ${permission.name} - ${permission.displayName}`);
+      }
     });
 
     return { totalPermissions, totalRoles };
@@ -376,7 +411,9 @@ async function seedPermissionsAndRoles(
     // Close the database connection only if requested
     if (shouldCloseDb && AppDataSource.isInitialized) {
       await AppDataSource.destroy();
-      console.log('\n🔌 Database connection closed');
+      if(!useTest) {
+        console.log('\n🔌 Database connection closed');
+      }
     }
     if (shouldCloseDb) {
       process.exit(0);

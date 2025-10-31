@@ -2,6 +2,9 @@ import * as bcrypt from 'bcryptjs';
 import { Role } from '../roles/entities/role.entity';
 import { User } from '../users/entities/user.entity';
 import { AppDataSource } from './data-source';
+import { resolveDatabaseConfig } from './database-env.util';
+
+const { useTest } = resolveDatabaseConfig();
 
 export const seedUsers = [
   {
@@ -24,12 +27,16 @@ export const seedUsers = [
 
 async function seedUsersOnly(shouldInitializeDb = true, shouldCloseDb = true) {
   try {
-    console.log('🌱 Starting users-only seeding/updating...');
+    if(!useTest) {
+      console.log('🌱 Starting users-only seeding/updating...');
+    }
 
     // Initialize the data source only if requested
     if (shouldInitializeDb) {
       await AppDataSource.initialize();
-      console.log('✅ Database connection established');
+      if(!useTest) {
+        console.log('✅ Database connection established');
+      }
     }
 
     const userRepository = AppDataSource.getRepository(User);
@@ -38,17 +45,20 @@ async function seedUsersOnly(shouldInitializeDb = true, shouldCloseDb = true) {
     // Check if roles exist (required for user creation)
     const roleCount = await roleRepository.count();
     if (roleCount === 0) {
-      console.log(
-        '❌ No roles found! Please run "npm run seed:all" first to create roles and permissions.',
-      );
+      if(!useTest) {
+        console.log(
+          '❌ No roles found! Please run "npm run seed:all" first to create roles and permissions.',
+        );
+      }
       if (shouldCloseDb) {
         process.exit(1);
       } else {
         throw new Error('No roles found - cannot create users without roles');
       }
     }
-
-    console.log('👥 Creating/updating users...');
+    if(!useTest) {
+      console.log('👥 Creating/updating users...');
+    }
     const roleMap = new Map<string, Role>();
 
     // Load existing roles
@@ -67,9 +77,11 @@ async function seedUsersOnly(shouldInitializeDb = true, shouldCloseDb = true) {
       // Get the role for this user
       const userRole = roleMap.get(userData.roleName);
       if (!userRole) {
-        console.log(
-          `❌ Role ${userData.roleName} not found for user ${userData.email}, skipping...`,
-        );
+        if(!useTest) {
+          console.log(
+            `❌ Role ${userData.roleName} not found for user ${userData.email}, skipping...`,
+          );
+        }
         continue;
       }
 
@@ -91,9 +103,11 @@ async function seedUsersOnly(shouldInitializeDb = true, shouldCloseDb = true) {
         });
 
         await userRepository.save(existingUser);
-        console.log(
-          `🔄 Updated user: ${userData.name} (${userData.email}) - ${userRole.displayName}`,
-        );
+        if(!useTest) {
+          console.log(
+            `🔄 Updated user: ${userData.name} (${userData.email}) - ${userRole.displayName}`,
+          );
+        }
       } else {
         // Hash the password for new user
         const hashedPassword = await bcrypt.hash(userData.password, 10);
@@ -107,17 +121,23 @@ async function seedUsersOnly(shouldInitializeDb = true, shouldCloseDb = true) {
         });
 
         await userRepository.save(user);
-        console.log(
-          `✅ Created user: ${userData.name} (${userData.email}) - ${userRole.displayName}`,
-        );
+        if(!useTest) {
+          console.log(
+            `✅ Created user: ${userData.name} (${userData.email}) - ${userRole.displayName}`,
+          );
+        }
       }
     }
 
-    console.log('🎉 Users seeding/updating completed successfully!');
+    if(!useTest) {
+      console.log('🎉 Users seeding/updating completed successfully!');
+    }
 
     // Display summary
     const totalUsers = await userRepository.count();
-    console.log(`📊 Total users in database: ${totalUsers}`);
+    if(!useTest) {
+      console.log(`📊 Total users in database: ${totalUsers}`);
+    }
 
     return { totalUsers };
   } catch (error) {
@@ -133,7 +153,9 @@ async function seedUsersOnly(shouldInitializeDb = true, shouldCloseDb = true) {
     // Close the database connection only if requested
     if (shouldCloseDb && AppDataSource.isInitialized) {
       await AppDataSource.destroy();
-      console.log('✅ Database connection closed');
+      if(!useTest) {
+        console.log('✅ Database connection closed');
+      }
     }
   }
 }
