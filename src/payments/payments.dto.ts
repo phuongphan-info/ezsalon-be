@@ -143,11 +143,6 @@ export class SubscriptionPlanSummaryDto {
   @ApiProperty({ description: 'Stripe price ID', nullable: true })
   stripePriceId?: string | null;
 
-  @ApiProperty({ description: 'Maximum number of salons', nullable: true })
-  maxSalons?: number | null;
-
-  @ApiProperty({ description: 'Maximum number of staff per salon', nullable: true })
-  maxStaffPerSalon?: number | null;
 }
 
 export class SubscriptionHistoryItemDto {

@@ -5,8 +5,6 @@ import {
   IsOptional, 
   IsString, 
   IsNumber, 
-  IsBoolean, 
-  IsObject,
   Min,
   Max,
   Length,
@@ -103,24 +101,6 @@ export class CreatePlanDto {
   @Max(365)
   @IsOptional()
   trialPeriodDays?: number;
-
-  @ApiProperty({ 
-    description: 'Maximum number of salons allowed', 
-    required: false
-  })
-  @IsInt()
-  @Min(1)
-  @IsOptional()
-  maxSalons?: number;
-
-  @ApiProperty({ 
-    description: 'Maximum number of staff per salon', 
-    required: false 
-  })
-  @IsInt()
-  @Min(1)
-  @IsOptional()
-  maxStaffPerSalon?: number;
 
   @ApiProperty({ 
     description: 'Display order for sorting',
@@ -222,24 +202,6 @@ export class UpdatePlanDto {
   trialPeriodDays?: number;
 
   @ApiProperty({ 
-    description: 'Maximum number of salons allowed', 
-    required: false 
-  })
-  @IsInt()
-  @Min(1)
-  @IsOptional()
-  maxSalons?: number;
-
-  @ApiProperty({ 
-    description: 'Maximum number of staff per salon', 
-    required: false 
-  })
-  @IsInt()
-  @Min(1)
-  @IsOptional()
-  maxStaffPerSalon?: number;
-
-  @ApiProperty({ 
     description: 'Display order for sorting',
     required: false
   })
@@ -286,12 +248,6 @@ export class PlanResponseDto {
   @ApiProperty({ description: 'Trial period days' })
   trialPeriodDays?: number;
 
-  @ApiProperty({ description: 'Maximum salons' })
-  maxSalons?: number;
-
-  @ApiProperty({ description: 'Maximum staff per salon' })
-  maxStaffPerSalon?: number;
-
   @ApiProperty({ description: 'Display order' })
   displayOrder: number;
 
@@ -317,6 +273,12 @@ export class PublicPlanResponseDto {
 
   @ApiProperty({ description: 'Currency code' })
   currency: string;
+
+  @ApiProperty({ description: 'Billing interval for subscription', enum: BILLING_INTERVAL, required: false })
+  billingInterval?: BILLING_INTERVAL;
+
+  @ApiProperty({ description: 'Billing interval count (e.g., 1 for every month, 3 for every 3 months)' })
+  billingIntervalCount?: number;
 
   @ApiProperty({ description: 'Trial period days' })
   trialPeriodDays: number;

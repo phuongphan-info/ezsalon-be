@@ -1,11 +1,12 @@
 import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Subscription, SUBSCRIPTION_STATUS } from './entities/subscription.entity';
+import { In, Repository } from 'typeorm';
+import { Subscription, SUBSCRIPTION_STATUS, SUBSCRIPTION_TABLE_NAME } from './entities/subscription.entity';
 import { SalonsService } from '../salons/salons.service';
 import { CustomerSalonsService } from '../customers/customer-salons.service';
 import { CustomersService } from '../customers/customers.service';
 import { CUSTOMER_SALON_ROLE } from '../customers/entities/customer-salon.entity';
+import { CacheService } from '../common/services/cache.service';
 
 @Injectable()
 export class SubscriptionService {
@@ -17,6 +18,7 @@ export class SubscriptionService {
     private readonly salonsService: SalonsService,
     private readonly customerSalonsService: CustomerSalonsService,
     private readonly customersService: CustomersService,
+    private readonly cacheService: CacheService,
   ) {}
 
   private shouldCreateSalon(status: SUBSCRIPTION_STATUS): boolean {
@@ -240,5 +242,25 @@ export class SubscriptionService {
 
     await this.subscriptionRepository.remove(subscription);
     this.logger.debug(`Removed subscription ${stripeSubscriptionUuid}`);
+  }
+
+  async findCurrentByCustomer(customerUuid: string): Promise<Subscription | null> {
+    const statuses = [
+      SUBSCRIPTION_STATUS.TRIALING,
+      SUBSCRIPTION_STATUS.ACTIVE,
+      SUBSCRIPTION_STATUS.PAST_DUE,
+    ];
+    return this.cacheService.caching(
+      SUBSCRIPTION_TABLE_NAME,
+      { customerUuid, statuses },
+      async () =>
+        this.subscriptionRepository.findOne({
+          where: {
+            customerUuid,
+            status: In(statuses),
+          },
+          order: { createdAt: 'DESC' },
+        }),
+    );
   }
 }

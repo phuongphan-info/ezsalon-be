@@ -72,7 +72,12 @@ export class CreateCustomerDefaultDto {
 export class CreateCustomerDto extends CreateCustomerDefaultDto {
   @ApiProperty({ 
     description: 'Role to assign when auto-assigning to salon (optional, defaults to STAFF)', 
-    enum: [CUSTOMER_SALON_ROLE.OWNER, CUSTOMER_SALON_ROLE.MANAGER, CUSTOMER_SALON_ROLE.STAFF],
+    enum: [
+      CUSTOMER_SALON_ROLE.OWNER,
+      CUSTOMER_SALON_ROLE.MANAGER,
+      CUSTOMER_SALON_ROLE.FRONT_DESK,
+      CUSTOMER_SALON_ROLE.STAFF,
+    ],
     example: CUSTOMER_SALON_ROLE.STAFF,
     required: false 
   })
@@ -139,7 +144,12 @@ export class UpdateCustomerDefaultDto {
 export class UpdateCustomerDto extends UpdateCustomerDefaultDto {
   @ApiProperty({ 
     description: 'Role to assign when auto-assigning to salon (optional, defaults to STAFF)', 
-    enum: [CUSTOMER_SALON_ROLE.OWNER, CUSTOMER_SALON_ROLE.MANAGER, CUSTOMER_SALON_ROLE.STAFF],
+    enum: [
+      CUSTOMER_SALON_ROLE.OWNER,
+      CUSTOMER_SALON_ROLE.MANAGER,
+      CUSTOMER_SALON_ROLE.FRONT_DESK,
+      CUSTOMER_SALON_ROLE.STAFF,
+    ],
     example: CUSTOMER_SALON_ROLE.STAFF,
     required: false 
   })

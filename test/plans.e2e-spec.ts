@@ -143,8 +143,6 @@ describe('Plans E2E', () => {
         currency: 'USD',
         billingInterval: BILLING_INTERVAL.MONTH,
         billingIntervalCount: 1,
-        maxSalons: 5,
-        maxStaffPerSalon: 10,
         displayOrder: 1
       };
 
@@ -261,8 +259,6 @@ describe('Plans E2E', () => {
         currency: 'USD',
         billingInterval: BILLING_INTERVAL.MONTH,
         billingIntervalCount: 1,
-        maxSalons: 3,
-        maxStaffPerSalon: 5,
         displayOrder: 2
       };
 
@@ -375,8 +371,6 @@ describe('Plans E2E', () => {
         currency: 'USD',
         billingInterval: BILLING_INTERVAL.MONTH,
         billingIntervalCount: 1,
-        maxSalons: 2,
-        maxStaffPerSalon: 8,
         displayOrder: 3
       };
 

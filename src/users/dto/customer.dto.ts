@@ -7,7 +7,13 @@ import { CUSTOMER_STATUS } from 'src/customers/entities/customer.entity';
 export class CreateUserCustomerDto extends CreateCustomerDefaultDto {
   @ApiProperty({ 
     description: 'Role to assign when auto-assigning to salon (optional, defaults to STAFF)', 
-    enum: [CUSTOMER_SALON_ROLE.MANAGER, CUSTOMER_SALON_ROLE.STAFF, CUSTOMER_SALON_ROLE.OWNER, CUSTOMER_SALON_ROLE.BUSINESS_OWNER],
+    enum: [
+      CUSTOMER_SALON_ROLE.MANAGER,
+      CUSTOMER_SALON_ROLE.FRONT_DESK,
+      CUSTOMER_SALON_ROLE.STAFF,
+      CUSTOMER_SALON_ROLE.OWNER,
+      CUSTOMER_SALON_ROLE.BUSINESS_OWNER,
+    ],
     example: CUSTOMER_SALON_ROLE.STAFF,
     required: false 
   })
@@ -37,7 +43,13 @@ export class CreateUserCustomerDto extends CreateCustomerDefaultDto {
 export class UpdateUserCustomerDto extends UpdateCustomerDefaultDto {
   @ApiProperty({ 
     description: 'Role to assign when auto-assigning to salon (optional, defaults to STAFF)', 
-    enum: [CUSTOMER_SALON_ROLE.MANAGER, CUSTOMER_SALON_ROLE.STAFF, CUSTOMER_SALON_ROLE.OWNER, CUSTOMER_SALON_ROLE.BUSINESS_OWNER],
+    enum: [
+      CUSTOMER_SALON_ROLE.MANAGER,
+      CUSTOMER_SALON_ROLE.FRONT_DESK,
+      CUSTOMER_SALON_ROLE.STAFF,
+      CUSTOMER_SALON_ROLE.OWNER,
+      CUSTOMER_SALON_ROLE.BUSINESS_OWNER,
+    ],
     example: CUSTOMER_SALON_ROLE.STAFF,
     required: false 
   })

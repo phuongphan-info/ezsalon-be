@@ -2,11 +2,10 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
-  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, FindManyOptions, Like } from 'typeorm';
-import { Plan, PLAN_TABLE_NAME, PLAN_STATUS, PLAN_TYPE } from './entities/plan.entity';
+import { Plan, PLAN_TABLE_NAME, PLAN_STATUS, PLAN_TYPE, BILLING_INTERVAL } from './entities/plan.entity';
 import { CreatePlanDto, UpdatePlanDto } from './dto/plan.dto';
 import { CacheService } from '../common/services/cache.service';
 import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
@@ -19,6 +18,14 @@ export class PlansService {
     private readonly cacheService: CacheService,
   ) {}
 
+  private normalizeBillingInterval(interval?: BILLING_INTERVAL | null): BILLING_INTERVAL {
+    return interval ?? BILLING_INTERVAL.MONTH;
+  }
+
+  private normalizeBillingIntervalCount(count?: number | null): number {
+    return typeof count === 'number' && count > 0 ? count : 1;
+  }
+
   /**
    * Clear all plan-related caches
    */
@@ -30,36 +37,60 @@ export class PlansService {
    * Create a new plan
    */
   async create(createPlanDto: CreatePlanDto, createdByUuid?: string): Promise<Plan> {
-    // Check if plan with same name already exists
+    const normalizedInterval = this.normalizeBillingInterval(createPlanDto.billingInterval);
+    const normalizedIntervalCount = this.normalizeBillingIntervalCount(createPlanDto.billingIntervalCount);
+
     const existingPlan = await this.planRepository.findOne({
-      where: { name: createPlanDto.name },
+      where: {
+        name: createPlanDto.name,
+        billingInterval: normalizedInterval,
+        billingIntervalCount: normalizedIntervalCount,
+      },
     });
 
     if (existingPlan) {
-      throw new ConflictException(`Plan with name "${createPlanDto.name}" already exists`);
+      throw new ConflictException(
+        `Plan "${createPlanDto.name}" already exists for ${normalizedInterval} billing interval (${normalizedIntervalCount})`,
+      );
     }
 
     // Check if Stripe IDs are unique if provided
-    if (createPlanDto.stripePlanId) {
-      const existingStripePlan = await this.planRepository.findOne({
-        where: { stripePlanId: createPlanDto.stripePlanId },
+    if (createPlanDto.stripePlanId && createPlanDto.stripePriceId) {
+      const existingStripePair = await this.planRepository.findOne({
+        where: {
+          stripePlanId: createPlanDto.stripePlanId,
+          stripePriceId: createPlanDto.stripePriceId,
+        },
       });
-      if (existingStripePlan) {
-        throw new ConflictException(`Plan with Stripe Plan ID "${createPlanDto.stripePlanId}" already exists`);
+      if (existingStripePair) {
+        throw new ConflictException(
+          `Plan with Stripe Plan ID "${createPlanDto.stripePlanId}" and Stripe Price ID "${createPlanDto.stripePriceId}" already exists`,
+        );
       }
-    }
+    } else {
+      if (createPlanDto.stripePlanId) {
+        const existingStripePlan = await this.planRepository.findOne({
+          where: { stripePlanId: createPlanDto.stripePlanId },
+        });
+        if (existingStripePlan) {
+          throw new ConflictException(`Plan with Stripe Plan ID "${createPlanDto.stripePlanId}" already exists`);
+        }
+      }
 
-    if (createPlanDto.stripePriceId) {
-      const existingStripePrice = await this.planRepository.findOne({
-        where: { stripePriceId: createPlanDto.stripePriceId },
-      });
-      if (existingStripePrice) {
-        throw new ConflictException(`Plan with Stripe Price ID "${createPlanDto.stripePriceId}" already exists`);
+      if (createPlanDto.stripePriceId) {
+        const existingStripePrice = await this.planRepository.findOne({
+          where: { stripePriceId: createPlanDto.stripePriceId },
+        });
+        if (existingStripePrice) {
+          throw new ConflictException(`Plan with Stripe Price ID "${createPlanDto.stripePriceId}" already exists`);
+        }
       }
     }
 
     const plan = this.planRepository.create({
       ...createPlanDto,
+      billingInterval: normalizedInterval,
+      billingIntervalCount: normalizedIntervalCount,
       createdByUuid,
     });
     const savedPlan = await this.planRepository.save(plan);
@@ -177,15 +208,23 @@ export class PlansService {
    */
   async update(uuid: string, updatePlanDto: UpdatePlanDto): Promise<Plan> {
     const plan = await this.findOne(uuid);
+    const targetName = updatePlanDto.name ?? plan.name;
+    const targetInterval = this.normalizeBillingInterval(updatePlanDto.billingInterval ?? plan.billingInterval);
+    const targetIntervalCount = this.normalizeBillingIntervalCount(
+      updatePlanDto.billingIntervalCount ?? plan.billingIntervalCount,
+    );
 
-    // Check if new name conflicts with existing plans
-    if (updatePlanDto.name && updatePlanDto.name !== plan.name) {
-      const existingPlan = await this.planRepository.findOne({
-        where: { name: updatePlanDto.name },
-      });
-      if (existingPlan && existingPlan.uuid !== uuid) {
-        throw new ConflictException(`Plan with name "${updatePlanDto.name}" already exists`);
-      }
+    const existingPlanWithSchedule = await this.planRepository.findOne({
+      where: {
+        name: targetName,
+        billingInterval: targetInterval,
+        billingIntervalCount: targetIntervalCount,
+      },
+    });
+    if (existingPlanWithSchedule && existingPlanWithSchedule.uuid !== uuid) {
+      throw new ConflictException(
+        `Plan "${targetName}" already exists for ${targetInterval} billing interval (${targetIntervalCount})`,
+      );
     }
 
     // Check if new Stripe IDs conflict with existing plans
@@ -207,8 +246,11 @@ export class PlansService {
       }
     }
 
-    // Update the plan
-    Object.assign(plan, updatePlanDto);
+  // Update the plan
+  Object.assign(plan, updatePlanDto);
+  plan.name = targetName;
+  plan.billingInterval = targetInterval;
+  plan.billingIntervalCount = targetIntervalCount;
     const updatedPlan = await this.planRepository.save(plan);
 
     // Clear cache after updating
@@ -275,14 +317,14 @@ export class PlansService {
   /**
    * Get all active plans with limited fields for public access
    */
-  async findActivePublic(): Promise<Pick<Plan, 'uuid' | 'name' | 'description' | 'priceCents' | 'currency' | 'trialPeriodDays' | 'createdAt' | 'updatedAt'>[]> {
+  async findActivePublic(): Promise<Pick<Plan, 'uuid' | 'name' | 'description' | 'priceCents' | 'currency' | 'billingInterval' | 'billingIntervalCount' | 'trialPeriodDays' | 'createdAt' | 'updatedAt'>[]> {
     return await this.cacheService.caching(
       PLAN_TABLE_NAME,
       'active_public',
       async () => {
         return this.planRepository.find({
           where: { status: PLAN_STATUS.ACTIVE },
-          select: ['uuid', 'name', 'description', 'priceCents', 'currency', 'trialPeriodDays', 'createdAt', 'updatedAt'],
+          select: ['uuid', 'name', 'description', 'priceCents', 'currency', 'billingInterval', 'billingIntervalCount', 'trialPeriodDays', 'createdAt', 'updatedAt'],
           order: { displayOrder: 'ASC', createdAt: 'DESC' }
         });
       }

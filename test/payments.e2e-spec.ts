@@ -230,8 +230,6 @@ describe('Payments / Stripe E2E', () => {
       billingIntervalCount: 1,
       stripePriceId: planStripePriceId,
       trialPeriodDays: 7,
-      maxSalons: 3,
-      maxStaffPerSalon: 10,
     });
 
     stripeSubscriptions[stripeSubscriptionId] = {
@@ -383,6 +381,20 @@ describe('Payments / Stripe E2E', () => {
         expect(ownerRelation).toBeDefined();
         expect(ownerRelation?.roleName).toBe(CUSTOMER_SALON_ROLE.BUSINESS_OWNER);
       }
+    });
+
+    it('blocks new checkout sessions when customer already subscribed', async () => {
+      const response = await request(httpServer)
+        .post('/payments/checkout')
+        .set('Authorization', `Bearer ${primaryCustomer.token}`)
+        .send({
+          planUuid: plan.uuid,
+          successUrl: 'http://localhost:3000/success',
+          cancelUrl: 'http://localhost:3000/cancel',
+        })
+        .expect(409);
+
+      expect(response.body.message).toContain('active subscription');
     });
 
     it('keeps subscription in trial status when trial_will_end event arrives', async () => {

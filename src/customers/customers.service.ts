@@ -49,6 +49,8 @@ export class CustomersService {
         return CUSTOMER_SALON_ROLE.OWNER;
       } else if (roles.includes(CUSTOMER_SALON_ROLE.MANAGER)) {
         return CUSTOMER_SALON_ROLE.MANAGER;
+      } else if (roles.includes(CUSTOMER_SALON_ROLE.FRONT_DESK)) {
+        return CUSTOMER_SALON_ROLE.FRONT_DESK;
       } else if (roles.includes(CUSTOMER_SALON_ROLE.STAFF)) {
         return CUSTOMER_SALON_ROLE.STAFF;
       }
@@ -86,7 +88,12 @@ export class CustomersService {
       // If user is an owner, they can see managers and staff in their salons
       const ownedSalonRelations = await this.customerSalonsService.findBySalonUuids(ownedSalons);
       allowedCustomerUuids = ownedSalonRelations
-        .filter(cs => cs.roleName === CUSTOMER_SALON_ROLE.MANAGER || cs.roleName === CUSTOMER_SALON_ROLE.STAFF)
+        .filter(
+          cs =>
+            cs.roleName === CUSTOMER_SALON_ROLE.MANAGER ||
+            cs.roleName === CUSTOMER_SALON_ROLE.FRONT_DESK ||
+            cs.roleName === CUSTOMER_SALON_ROLE.STAFF,
+        )
         .map(cs => cs.customerUuid);
     }
 
@@ -94,7 +101,11 @@ export class CustomersService {
       // If user is a manager, they can see staff in their managed salons
       const managedSalonRelations = await this.customerSalonsService.findBySalonUuids(managedSalons);
       const staffUuids = managedSalonRelations
-        .filter(cs => cs.roleName === CUSTOMER_SALON_ROLE.STAFF)
+        .filter(
+          cs =>
+            cs.roleName === CUSTOMER_SALON_ROLE.FRONT_DESK ||
+            cs.roleName === CUSTOMER_SALON_ROLE.STAFF,
+        )
         .map(cs => cs.customerUuid);
       
       allowedCustomerUuids = [...allowedCustomerUuids, ...staffUuids];

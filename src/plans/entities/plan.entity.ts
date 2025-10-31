@@ -3,6 +3,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
@@ -28,6 +29,9 @@ export enum BILLING_INTERVAL {
   YEAR = 'year',
 }
 
+@Index('IDX_plans_name_interval_count', ['name', 'billingInterval', 'billingIntervalCount'], {
+  unique: true,
+})
 @Entity(PLAN_TABLE_NAME)
 export class Plan {
   @ApiProperty({ description: 'Plan ID' })
@@ -60,11 +64,11 @@ export class Plan {
 
   @ApiProperty({ description: 'Billing interval for subscription', enum: BILLING_INTERVAL, required: false })
   @Column({ type: 'enum', enum: BILLING_INTERVAL, default: BILLING_INTERVAL.MONTH, name: 'billing_interval' })
-  billingInterval?: BILLING_INTERVAL;
+  billingInterval: BILLING_INTERVAL;
 
   @ApiProperty({ description: 'Billing interval count (e.g., 1 for every month, 3 for every 3 months)' })
-  @Column({ type: 'int', nullable: true, default: 1, name: 'billing_interval_count' })
-  billingIntervalCount?: number;
+  @Column({ type: 'int', default: 1, name: 'billing_interval_count' })
+  billingIntervalCount: number;
 
   @ApiProperty({ description: 'Stripe plan ID' })
   @Column({ nullable: true, name: 'stripe_plan_id' })
@@ -73,14 +77,6 @@ export class Plan {
   @ApiProperty({ description: 'Stripe price ID' })
   @Column({ nullable: true, name: 'stripe_price_id' })
   stripePriceId?: string;
-
-  @ApiProperty({ description: 'Maximum number of salons allowed' })
-  @Column({ type: 'int', nullable: true, name: 'max_salons' })
-  maxSalons?: number;
-
-  @ApiProperty({ description: 'Maximum number of staff per salon' })
-  @Column({ type: 'int', nullable: true, name: 'max_staff_per_salon' })
-  maxStaffPerSalon?: number;
 
   @ApiProperty({ description: 'Display order for sorting' })
   @Column({ type: 'int', default: 0, name: 'display_order' })

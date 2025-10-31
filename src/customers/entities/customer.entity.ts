@@ -93,7 +93,6 @@ export class Customer {
   @JoinColumn({ name: 'created_by_user_uuid' })
   createdByUser?: User;
 
-
   @ApiProperty({ description: 'Social accounts linked to this customer' })
   @Expose()
   @OneToMany(() => SocialAccount, (socialAccount) => socialAccount.customer, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })

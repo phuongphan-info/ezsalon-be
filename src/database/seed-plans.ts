@@ -61,8 +61,6 @@ export async function seedPlansOnly(
         billingInterval: BILLING_INTERVAL.MONTH,
         billingIntervalCount: 1,
         trialPeriodDays: 7,
-        maxSalons: 1,
-        maxStaffPerSalon: 50,
         displayOrder: 1,
         createdByUuid: adminUser?.uuid,
       },
@@ -76,8 +74,6 @@ export async function seedPlansOnly(
         billingInterval: BILLING_INTERVAL.YEAR,
         billingIntervalCount: 1,
         trialPeriodDays: 7,
-        maxSalons: 1,
-        maxStaffPerSalon: 50,
         displayOrder: 2,
         createdByUuid: adminUser?.uuid,
       },
@@ -103,7 +99,6 @@ export async function seedPlansOnly(
       console.log(`   • ${plan.name}`);
       console.log(`     - Price: $${price}/${billingText}`);
       console.log(`     - Trial: ${plan.trialPeriodDays} days`);
-      console.log(`     - Limits: ${plan.maxSalons} salon(s), ${plan.maxStaffPerSalon} staff per salon`);
       console.log(`     - Status: ${plan.status}`);
       console.log('');
     }

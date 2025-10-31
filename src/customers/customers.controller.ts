@@ -79,7 +79,7 @@ export class CustomersController {
     // Registration creates new customer as owner by default
     const customer = await this.customersService.create({
       ...createCustomerDto,
-      status: CUSTOMER_STATUS.PENDING,
+      status: CUSTOMER_STATUS.ACTIVED,
       isOwner: true, // New registered customers are owners by default
       createdByUuid: null, // Self-registration, no creator.             
     });

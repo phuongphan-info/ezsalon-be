@@ -17,6 +17,7 @@ export enum CUSTOMER_SALON_ROLE {
   BUSINESS_OWNER = 'BUSINESS_OWNER',
   OWNER = 'OWNER',
   MANAGER = 'MANAGER',
+  FRONT_DESK = 'FRONT_DESK',
   STAFF = 'STAFF',
 }
 
@@ -44,7 +45,12 @@ export class CustomerSalon {
 
   @ApiProperty({
     description: 'Customer role in this salon',
-    enum: [CUSTOMER_SALON_ROLE.OWNER, CUSTOMER_SALON_ROLE.MANAGER, CUSTOMER_SALON_ROLE.STAFF],
+    enum: [
+      CUSTOMER_SALON_ROLE.OWNER,
+      CUSTOMER_SALON_ROLE.MANAGER,
+      CUSTOMER_SALON_ROLE.FRONT_DESK,
+      CUSTOMER_SALON_ROLE.STAFF,
+    ],
     example: CUSTOMER_SALON_ROLE.STAFF,
   })
   @Column({ name: 'role_name' })

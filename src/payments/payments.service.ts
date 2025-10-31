@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { PlansService } from '../plans/plans.service';
@@ -235,8 +235,6 @@ export class PaymentsService {
                 trialPeriodDays: subscription.plan.trialPeriodDays ?? null,
                 stripePlanId: subscription.plan.stripePlanId ?? null,
                 stripePriceId: subscription.plan.stripePriceId ?? null,
-                maxSalons: subscription.plan.maxSalons ?? null,
-                maxStaffPerSalon: subscription.plan.maxStaffPerSalon ?? null,
               }
             : null;
 
@@ -630,6 +628,11 @@ export class PaymentsService {
 
       if (!customer?.uuid) {
         throw new NotFoundException('Customer not found');
+      }
+
+      const existingSubscription = await this.subscriptionService.findCurrentByCustomer(customer.uuid);
+      if (existingSubscription) {
+        throw new ConflictException('You already have an active subscription');
       }
 
       // Ensure Stripe plan and price exist
