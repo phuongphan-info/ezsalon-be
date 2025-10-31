@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { Plan } from '../../plans/entities/plan.entity';
 import { Customer } from 'src/customers/entities/customer.entity';
+import { Salon } from '../../salons/entities/salon.entity';
 
 export const SUBSCRIPTION_TABLE_NAME = 'subscriptions';
 
@@ -28,6 +29,7 @@ export enum SUBSCRIPTION_STATUS {
 @Index(['customerUuid'])
 @Index(['planUuid'])
 @Index(['status'])
+@Index(['salonUuid'], { unique: true })
 export class Subscription {
   @PrimaryGeneratedColumn('uuid')
   uuid: string;
@@ -50,6 +52,13 @@ export class Subscription {
   @ManyToOne(() => Customer, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'customer_uuid' })
   customer: Customer;
+
+  @Column({ name: 'salon_uuid', type: 'varchar', length: 36, nullable: true, unique: true })
+  salonUuid?: string | null;
+
+  @ManyToOne(() => Salon, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'salon_uuid' })
+  salon?: Salon | null;
 
   @Column({ name: 'current_period_start_at', type: 'datetime', nullable: true })
   currentPeriodStartAt?: Date | null;

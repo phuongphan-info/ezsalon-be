@@ -28,7 +28,7 @@ export class CreateSalonDto {
   })
   @IsString()
   @IsNotEmpty()
-  address!: string;
+  address?: string;
 
   @ApiProperty({
     description: 'Salon phone number',
@@ -36,7 +36,7 @@ export class CreateSalonDto {
   })
   @IsString()
   @IsNotEmpty()
-  phone!: string;
+  phone?: string;
 
   @ApiProperty({
     description: 'Salon email',
@@ -44,7 +44,7 @@ export class CreateSalonDto {
   })
   @IsEmail()
   @IsNotEmpty()
-  email!: string;
+  email?: string;
 
   @ApiProperty({
     description: 'Business hours',

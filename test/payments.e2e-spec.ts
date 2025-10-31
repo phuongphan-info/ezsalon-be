@@ -9,12 +9,14 @@ import { CustomersService } from '../src/customers/customers.service';
 import { StripeService } from '../src/payments/stripe.service';
 import { SubscriptionService } from '../src/payments/subscription.service';
 import { CacheService } from '../src/common/services/cache.service';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { Plan, PLAN_STATUS, PLAN_TYPE, BILLING_INTERVAL } from '../src/plans/entities/plan.entity';
 import { Payment, PAYMENT_STATUS } from '../src/payments/entities/payment.entity';
 import { Subscription, SUBSCRIPTION_STATUS } from '../src/payments/entities/subscription.entity';
 import { Stripe as StripeMapping } from '../src/payments/entities/stripe.entity';
 import { CUSTOMER_STATUS } from '../src/customers/entities/customer.entity';
+import { Salon } from '../src/salons/entities/salon.entity';
+import { CustomerSalon, CUSTOMER_SALON_ROLE } from '../src/customers/entities/customer-salon.entity';
 
 jest.setTimeout(60000);
 
@@ -34,8 +36,11 @@ describe('Payments / Stripe E2E', () => {
   let subscriptionRepository: Repository<Subscription>;
   let stripeRepository: Repository<StripeMapping>;
   let planRepository: Repository<Plan>;
+  let salonRepository: Repository<Salon>;
+  let customerSalonRepository: Repository<CustomerSalon>;
 
   const createdCustomerUuids: string[] = [];
+  const createdSalonUuids: string[] = [];
 
   const planStripePriceId = `price_test_${Date.now()}`;
   const stripeCustomerId = 'cus_test_e2e';
@@ -48,8 +53,8 @@ describe('Payments / Stripe E2E', () => {
   const stripeInvoices: Record<string, any> = {};
 
   let plan: Plan;
-  let primaryCustomer: { uuid: string; token: string };
-  let otherCustomer: { uuid: string; token: string };
+  let primaryCustomer: { uuid: string; token: string; name: string };
+  let otherCustomer: { uuid: string; token: string; name: string };
   let checkoutSessionId: string;
 
   const stripeStub: any = {
@@ -132,15 +137,16 @@ describe('Payments / Stripe E2E', () => {
   const baseTimestamp = Math.floor(Date.now() / 1000);
 
   const registerAndLoginCustomer = async (label: string) => {
-  const email = `stripe-${label}-${Date.now().toString(36)}-${uuid().slice(0, 8)}@ezsalon.io`;
+    const email = `stripe-${label}-${Date.now().toString(36)}-${uuid().slice(0, 8)}@ezsalon.io`;
     const password = 'StripeTest123!';
     const phoneSuffix = (1000000000 + Math.floor(Math.random() * 9000000000)).toString();
+    const displayName = `Stripe E2E ${label}`;
     const registerResponse = await request(httpServer)
       .post('/customers/register')
       .send({
         email,
         password,
-        name: `Stripe E2E ${label}`,
+        name: displayName,
         phone: `+84${phoneSuffix}`,
       });
 
@@ -164,6 +170,7 @@ describe('Payments / Stripe E2E', () => {
     return {
       uuid: customerUuid,
       token: loginResponse.body.accessToken as string,
+      name: displayName,
     };
   };
 
@@ -205,6 +212,8 @@ describe('Payments / Stripe E2E', () => {
     subscriptionRepository = dataSource.getRepository(Subscription);
     stripeRepository = dataSource.getRepository(StripeMapping);
     planRepository = dataSource.getRepository(Plan);
+    salonRepository = dataSource.getRepository(Salon);
+    customerSalonRepository = dataSource.getRepository(CustomerSalon);
 
     (paymentsService as any).stripe = stripeStub;
 
@@ -276,6 +285,11 @@ describe('Payments / Stripe E2E', () => {
       } catch {
         // ignore cleanup failures
       }
+    }
+
+    if (createdSalonUuids.length > 0) {
+      await customerSalonRepository.delete({ salonUuid: In(createdSalonUuids) });
+      await salonRepository.delete({ uuid: In(createdSalonUuids) });
     }
 
     await cacheService.reset();
@@ -354,6 +368,21 @@ describe('Payments / Stripe E2E', () => {
       expect(subscription).toBeTruthy();
       expect(subscription?.status).toBe(SUBSCRIPTION_STATUS.TRIALING);
       expect(subscription?.planUuid).toBe(plan.uuid);
+      expect(subscription?.salonUuid).toBeDefined();
+
+      if (subscription?.salonUuid) {
+        const autoSalon = await salonRepository.findOne({ where: { uuid: subscription.salonUuid } });
+        expect(autoSalon).toBeTruthy();
+        const expectedSalonName = `${primaryCustomer.name.split(/\s+/)[0]} Salon`;
+        expect(autoSalon?.name).toBe(expectedSalonName);
+        createdSalonUuids.push(subscription.salonUuid);
+
+        const relations = await customerSalonRepository.find({ where: { salonUuid: subscription.salonUuid } });
+        expect(relations.length).toBeGreaterThan(0);
+        const ownerRelation = relations.find((relation) => relation.customerUuid === primaryCustomer.uuid);
+        expect(ownerRelation).toBeDefined();
+        expect(ownerRelation?.roleName).toBe(CUSTOMER_SALON_ROLE.BUSINESS_OWNER);
+      }
     });
 
     it('keeps subscription in trial status when trial_will_end event arrives', async () => {

@@ -1,7 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Subscription, SUBSCRIPTION_STATUS } from './entities/subscription.entity';
+import { SalonsService } from '../salons/salons.service';
+import { CustomerSalonsService } from '../customers/customer-salons.service';
+import { CustomersService } from '../customers/customers.service';
+import { CUSTOMER_SALON_ROLE } from '../customers/entities/customer-salon.entity';
 
 @Injectable()
 export class SubscriptionService {
@@ -10,7 +14,80 @@ export class SubscriptionService {
   constructor(
     @InjectRepository(Subscription)
     private readonly subscriptionRepository: Repository<Subscription>,
+    private readonly salonsService: SalonsService,
+    private readonly customerSalonsService: CustomerSalonsService,
+    private readonly customersService: CustomersService,
   ) {}
+
+  private shouldCreateSalon(status: SUBSCRIPTION_STATUS): boolean {
+    return [SUBSCRIPTION_STATUS.ACTIVE, SUBSCRIPTION_STATUS.TRIALING].includes(status);
+  }
+
+  private deriveSalonName(customerName?: string | null, customerEmail?: string | null): string {
+    const trimmedName = customerName?.trim();
+    if (trimmedName) {
+      const firstWord = trimmedName.split(/\s+/)[0];
+      if (firstWord) {
+        return `${firstWord} Salon`;
+      }
+    }
+
+    const emailLocalPart = customerEmail?.split('@')[0]?.trim();
+    if (emailLocalPart) {
+      const sanitized = emailLocalPart.replace(/[^a-zA-Z0-9]+/g, ' ').trim();
+      const firstWord = sanitized.split(/\s+/)[0];
+      if (firstWord) {
+        return `${firstWord} Salon`;
+      }
+    }
+
+    return 'Your Salon';
+  }
+
+  private async resolveDefaultSalonName(customerUuid: string): Promise<string> {
+    try {
+      const customer = await this.customersService.findOne(customerUuid);
+      return this.deriveSalonName(customer?.name, customer?.email);
+    } catch (error) {
+      this.logger.debug(`Falling back to default salon name for customer ${customerUuid}: ${error.message}`);
+      return 'Your Salon';
+    }
+  }
+
+  private async ensureCustomerSalonRelation(customerUuid: string, salonUuid: string): Promise<void> {
+    try {
+      await this.customerSalonsService.create({
+        customerUuid,
+        salonUuid,
+        roleName: CUSTOMER_SALON_ROLE.BUSINESS_OWNER,
+      });
+    } catch (error) {
+      if (error instanceof ConflictException) {
+        this.logger.debug(`Customer ${customerUuid} already linked to salon ${salonUuid}`);
+        return;
+      }
+      throw error;
+    }
+  }
+
+  private async ensureSubscriptionSalon(customerUuid: string, stripeSubscriptionUuid: string): Promise<string | null> {
+    try {
+      const salonName = await this.resolveDefaultSalonName(customerUuid);
+      const salon = await this.salonsService.create({
+        name: salonName,
+      });
+
+      await this.ensureCustomerSalonRelation(customerUuid, salon.uuid);
+      this.logger.log(`Auto-created salon ${salon.uuid} for subscription ${stripeSubscriptionUuid}`);
+      return salon.uuid;
+    } catch (error) {
+      this.logger.error(
+        `Failed to ensure default salon for subscription ${stripeSubscriptionUuid}: ${error.message}`,
+        error.stack,
+      );
+      return null;
+    }
+  }
 
   async upsertSubscription(params: {
     stripeSubscriptionUuid: string;
@@ -62,6 +139,7 @@ export class SubscriptionService {
         canceledAt: canceledAt ?? null,
         paidAt: paidAt ?? null,
         latestInvoiceId: latestInvoiceId ?? null,
+        salonUuid: null,
       });
     } else {
       subscription.planUuid = planUuid;
@@ -97,7 +175,16 @@ export class SubscriptionService {
       }
     }
 
-    const saved = await this.subscriptionRepository.save(subscription);
+    let saved = await this.subscriptionRepository.save(subscription);
+
+    if (this.shouldCreateSalon(saved.status) && !saved.salonUuid) {
+      const salonUuid = await this.ensureSubscriptionSalon(customerUuid, stripeSubscriptionUuid);
+      if (salonUuid) {
+        saved.salonUuid = salonUuid;
+        saved = await this.subscriptionRepository.save(saved);
+      }
+    }
+
     this.logger.debug(`Upserted subscription ${saved.stripeSubscriptionUuid} as ${saved.status}`);
     return saved;
   }
@@ -118,10 +205,24 @@ export class SubscriptionService {
       return null;
     }
 
+    let shouldSave = false;
+
     if (subscription.status !== status) {
       subscription.status = status;
+      shouldSave = true;
+    }
+
+    if (!subscription.salonUuid && this.shouldCreateSalon(subscription.status)) {
+      const salonUuid = await this.ensureSubscriptionSalon(subscription.customerUuid, stripeSubscriptionUuid);
+      if (salonUuid) {
+        subscription.salonUuid = salonUuid;
+        shouldSave = true;
+      }
+    }
+
+    if (shouldSave) {
       await this.subscriptionRepository.save(subscription);
-      this.logger.debug(`Updated subscription ${stripeSubscriptionUuid} status to ${status}`);
+      this.logger.debug(`Updated subscription ${stripeSubscriptionUuid} status to ${subscription.status}`);
     }
 
     return subscription;

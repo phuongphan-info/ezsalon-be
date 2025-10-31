@@ -29,16 +29,16 @@ export class Salon {
   description?: string;
 
   @ApiProperty({ description: 'Salon address' })
-  @Column({ name: 'salon_address' })
-  address!: string;
+  @Column({ name: 'salon_address', nullable: true })
+  address?: string;
 
   @ApiProperty({ description: 'Salon phone number' })
-  @Column({ name: 'phone_number' })
-  phone!: string;
+  @Column({ name: 'phone_number', nullable: true })
+  phone?: string;
 
   @ApiProperty({ description: 'Salon email' })
-  @Column({ name: 'email_address', unique: true })
-  email!: string;
+  @Column({ name: 'email_address', unique: true, nullable: true })
+  email?: string;
 
   @ApiProperty({ description: 'Business hours' })
   @Column({ name: 'business_hours', type: 'json', nullable: true })
