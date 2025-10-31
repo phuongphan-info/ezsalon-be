@@ -19,6 +19,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { JwtService } from '@nestjs/jwt';
+import { AuthGuard } from '@nestjs/passport';
 import { CreateCustomerDto, UpdateCustomerDto, CustomerLoginDto } from './dto/customer.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { CustomersService } from './customers.service';
@@ -30,6 +31,7 @@ import { ManagerOrOwnerGuard, ManagerOrOwnerOnly } from './guards/manager-or-own
 import { CurrentCustomer } from './decorators/current-customer.decorator';
 import { Public } from './decorators/public.decorator';
 import { CUSTOMER_STATUS } from './entities/customer.entity';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('customers')
 @Controller('customers')
@@ -75,12 +77,23 @@ export class CustomersController {
   @ApiResponse({ status: 409, description: 'Conflict - Customer with this email or phone number already exists' })
   async register(@Body() createCustomerDto: CreateCustomerDto) {
     // Registration creates new customer as owner by default
-    return await this.customersService.create({
+    const customer = await this.customersService.create({
       ...createCustomerDto,
       status: CUSTOMER_STATUS.PENDING,
       isOwner: true, // New registered customers are owners by default
       createdByUuid: null, // Self-registration, no creator.             
     });
+
+    const payload = { email: customer.email, sub: customer.uuid, type: 'customer' };
+
+    return {
+      accessToken: this.jwtService.sign(payload),
+      customer: {
+        uuid: customer.uuid,
+        email: customer.email,
+        name: customer.name,
+      },
+    };
   }
 
   @Post('login')
@@ -132,6 +145,55 @@ export class CustomersController {
         name: customer.name,
       },
     };
+  }
+
+  // Social OAuth Routes
+  @Public()
+  @ApiOperation({ summary: 'Initiate Google OAuth login' })
+  @Get('login/google')
+  @UseGuards(AuthGuard('google'))
+  async googleAuth() {}
+
+  @Public()
+  @ApiOperation({ summary: 'Google OAuth callback' })
+  @ApiResponse({ status: 200, description: 'Returns JWT token and customer info as JSON' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+  @Get('login/google/callback')
+  @UseGuards(AuthGuard('google'))
+  async googleAuthRedirect(@CurrentUser() currentUser: any) {
+    return this.buildSocialLoginResponse(currentUser);
+  }
+
+  @Public()
+  @ApiOperation({ summary: 'Initiate Facebook OAuth login' })
+  @Get('login/facebook')
+  @UseGuards(AuthGuard('facebook'))
+  async facebookAuth() {}
+
+  @Public()
+  @ApiOperation({ summary: 'Facebook OAuth callback' })
+  @ApiResponse({ status: 200, description: 'Returns JWT token and customer info as JSON' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+  @Get('login/facebook/callback')
+  @UseGuards(AuthGuard('facebook'))
+  async facebookAuthRedirect(@CurrentUser() currentUser: any) {
+    return this.buildSocialLoginResponse(currentUser);
+  }
+
+  @Public()
+  @ApiOperation({ summary: 'Initiate Apple OAuth login' })
+  @Get('login/apple')
+  @UseGuards(AuthGuard('apple'))
+  async appleAuth() {}
+
+  @Public()
+  @ApiOperation({ summary: 'Apple OAuth callback' })
+  @ApiResponse({ status: 200, description: 'Returns JWT token and customer info as JSON' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+  @Get('login/apple/callback')
+  @UseGuards(AuthGuard('apple'))
+  async appleAuthRedirect(@CurrentUser() currentUser: any) {
+    return this.buildSocialLoginResponse(currentUser);
   }
 
   @Get()
@@ -200,5 +262,36 @@ export class CustomersController {
     // Validate that the requested customer belongs to the current customer's salons
     await this.customersService.validateCustomerAccess(currentCustomer.customer, uuid);
     return await this.customersService.remove(uuid);
+  }
+
+  private buildSocialLoginResponse(authResult: any) {
+    if (!authResult || !authResult.user) {
+      throw new UnauthorizedException('Social authentication failed');
+    }
+
+    const { user: customer, socialAccount, isNewUser } = authResult;
+
+    const payload = { email: customer.email, sub: customer.uuid, type: 'customer' };
+    const accessToken = this.jwtService.sign(payload);
+
+    return {
+      accessToken,
+      customer: {
+        uuid: customer.uuid,
+        email: customer.email,
+        name: customer.name,
+        avatar: customer.avatar,
+        role: customer.role,
+        isNewUser,
+      },
+      socialAccount: socialAccount
+        ? {
+            uuid: socialAccount.uuid,
+            socialName: socialAccount.socialName,
+            displayName: socialAccount.displayName,
+            avatarUrl: socialAccount.avatarUrl,
+          }
+        : null,
+    };
   }
 }

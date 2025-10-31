@@ -150,7 +150,8 @@ describe('Payments / Stripe E2E', () => {
       );
     }
 
-    const customerUuid = registerResponse.body.uuid;
+    const { customer } = registerResponse.body;
+    const customerUuid = customer.uuid;
     createdCustomerUuids.push(customerUuid);
 
     await customersService.update(customerUuid, { status: CUSTOMER_STATUS.ACTIVED });

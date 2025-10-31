@@ -96,13 +96,11 @@ describe('Customers E2E', () => {
         .send(testCustomer)
         .expect(201);
 
-      expect(response.body).toHaveProperty('uuid');
-      expect(response.body.email).toBe(testCustomer.email);
-      expect(response.body.name).toBe(testCustomer.name);
-      expect(response.body.phone).toBe(testCustomer.phone);
-      expect(response.body.status).toBe(CUSTOMER_STATUS.PENDING);
-
-      testCustomerUuid = response.body.uuid;
+      expect(response.body).toHaveProperty('accessToken');
+      expect(response.body).toHaveProperty('customer');
+      expect(response.body.customer.email).toBe(testCustomer.email);
+      expect(response.body.customer.name).toBe(testCustomer.name);
+      testCustomerUuid = response.body.customer.uuid;
       createdCustomerUuids.push(testCustomerUuid);
     });
 
@@ -583,7 +581,8 @@ describe('Customers E2E', () => {
         .post('/customers/register')
         .send(businessOwner)
         .expect(201);
-      boCustomerId = res.body.uuid;
+      expect(res.body).toHaveProperty('customer');
+      boCustomerId = res.body.customer.uuid;
       createdCustomerUuids.push(boCustomerId);
     });
     it('A.2 LOGIN - BUSINESS_OWNER', async () => {
