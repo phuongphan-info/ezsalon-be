@@ -275,14 +275,14 @@ export class PlansService {
   /**
    * Get all active plans with limited fields for public access
    */
-  async findActivePublic(): Promise<Pick<Plan, 'uuid' | 'name' | 'description' | 'priceCents' | 'currency' | 'createdAt' | 'updatedAt'>[]> {
+  async findActivePublic(): Promise<Pick<Plan, 'uuid' | 'name' | 'description' | 'priceCents' | 'currency' | 'trialPeriodDays' | 'createdAt' | 'updatedAt'>[]> {
     return await this.cacheService.caching(
       PLAN_TABLE_NAME,
       'active_public',
       async () => {
         return this.planRepository.find({
           where: { status: PLAN_STATUS.ACTIVE },
-          select: ['uuid', 'name', 'description', 'priceCents', 'currency', 'createdAt', 'updatedAt'],
+          select: ['uuid', 'name', 'description', 'priceCents', 'currency', 'trialPeriodDays', 'createdAt', 'updatedAt'],
           order: { displayOrder: 'ASC', createdAt: 'DESC' }
         });
       }

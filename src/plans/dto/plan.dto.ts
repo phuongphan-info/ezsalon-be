@@ -318,6 +318,9 @@ export class PublicPlanResponseDto {
   @ApiProperty({ description: 'Currency code' })
   currency: string;
 
+  @ApiProperty({ description: 'Trial period days' })
+  trialPeriodDays: number;
+
   @ApiProperty({ description: 'Created at' })
   createdAt: Date;
 
