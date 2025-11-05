@@ -824,8 +824,6 @@ export class PaymentsService {
 
         // Subscription events
         case 'customer.subscription.created':
-          await this.persistStripeSubscription(event.data.object as Stripe.Subscription);
-          break;
         case 'customer.subscription.updated':
           await this.persistStripeSubscription(event.data.object as Stripe.Subscription);
           break;
@@ -888,7 +886,7 @@ export class PaymentsService {
     }
 
     try {
-      const customer = await this.customerService.findOne(clientReferenceId);
+      const customer = await this.customerService.findOneByUuid(clientReferenceId);
       await this.stripeService.upsertStripeCustomer(stripeCustomerUuid, customer.uuid);
       this.logger.log(`Linked Stripe customer ${stripeCustomerUuid} to customer ${customer.uuid}`);
 

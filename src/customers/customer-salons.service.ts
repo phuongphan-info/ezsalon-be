@@ -77,7 +77,7 @@ export class CustomerSalonsService {
     );
   }
 
-  async findByCustomer(customerUuid: string): Promise<CustomerSalon[]> {
+  async findByCustomerUuid(customerUuid: string): Promise<CustomerSalon[]> {
     return await this.cacheService.caching(
       CUSTOMER_SALON_TABLE_NAME,
       { customerUuid },
@@ -88,10 +88,6 @@ export class CustomerSalonsService {
         });
       }
     );
-  }
-
-  async findByCustomerUuid(customerUuid: string): Promise<CustomerSalon[]> {
-    return this.findByCustomer(customerUuid);
   }
 
   async findBySalon(salonUuid: string): Promise<CustomerSalon[]> {
@@ -222,7 +218,7 @@ export class CustomerSalonsService {
         throw error;
       }
       // If any other error occurs (database error, etc.), treat as unauthorized
-      throw new ForbiddenException('Only salon owners can perform this action');
+      throw new ForbiddenException(error.message);
     }
   }
 }

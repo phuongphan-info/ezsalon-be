@@ -225,6 +225,10 @@ export class CustomersService {
     );
   }
 
+  async findOneByUuid(uuid: string, withRole: boolean = false, currentUser?: User): Promise<Customer | (Customer & { role?: string })> {
+    return await this.findOne(uuid, withRole, currentUser);
+  }
+
   async findOne(uuid: string, withRole: boolean = false, currentUser?: User): Promise<Customer | (Customer & { role?: string })> {
     return await this.cacheService.caching(
       CUSTOMER_TABLE_NAME,

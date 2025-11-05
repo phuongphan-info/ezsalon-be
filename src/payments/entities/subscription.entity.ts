@@ -42,14 +42,14 @@ export class Subscription {
   @Column({ name: 'plan_uuid', type: 'uuid' })
   planUuid: string;
 
-  @ManyToOne(() => Plan, { onDelete: 'RESTRICT' })
+  @ManyToOne(() => Plan, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   @JoinColumn({ name: 'plan_uuid' })
   plan: Plan;
 
   @Column({ name: 'customer_uuid', type: 'uuid' })
   customerUuid: string;
 
-  @ManyToOne(() => Customer, { onDelete: 'RESTRICT' })
+  @ManyToOne(() => Customer, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   @JoinColumn({ name: 'customer_uuid' })
   customer: Customer;
 

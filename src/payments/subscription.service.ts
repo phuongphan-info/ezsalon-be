@@ -48,7 +48,7 @@ export class SubscriptionService {
 
   private async resolveDefaultSalonName(customerUuid: string): Promise<string> {
     try {
-      const customer = await this.customersService.findOne(customerUuid);
+      const customer = await this.customersService.findOneByUuid(customerUuid);
       return this.deriveSalonName(customer?.name, customer?.email);
     } catch (error) {
       this.logger.debug(`Falling back to default salon name for customer ${customerUuid}: ${error.message}`);
