@@ -5,7 +5,10 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import { Customer } from '../../customers/entities/customer.entity';
 
 export const SALON_TABLE_NAME = 'salons';
 
@@ -51,6 +54,14 @@ export class Salon {
   @ApiProperty({ description: 'Salon logo URL' })
   @Column({ name: 'logo_url', nullable: true })
   logo?: string;
+
+  @ApiProperty({ description: 'Customer UUID (owner)' })
+  @Column({ name: 'customer_uuid', nullable: true })
+  customerUuid?: string;
+
+  @ManyToOne(() => Customer, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
+  @JoinColumn({ name: 'customer_uuid' })
+  customer?: Customer;
 
   @ApiProperty({
     description: 'Salon status',
