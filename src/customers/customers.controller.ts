@@ -4,13 +4,16 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
   UnauthorizedException,
+  NotFoundException,
   UseGuards,
   HttpCode,
   HttpStatus,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiOperation,
@@ -28,14 +31,29 @@ import { CustomerJwtAuthGuard } from './guards/customer-jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { OwnerGuard } from './guards/owner.guard';
 import { ManagerOrOwnerGuard, ManagerOrOwnerOnly } from './guards/manager-or-owner.guard';
+import { SalonOwnershipGuard } from './guards/salon-ownership.guard';
+import { SalonManagementGuard } from './guards/salon-management.guard';
+import { SalonManagementAccessCustomerGuard } from './guards/salon-management-access-customer.guard';
 import { CurrentCustomer } from './decorators/current-customer.decorator';
 import { Public } from './decorators/public.decorator';
-import { CUSTOMER_STATUS } from './entities/customer.entity';
+import { SalonOwnership } from './decorators/salon-ownership.decorator';
+import { SalonManagement } from './decorators/salon-management.decorator';
+import { SalonManagementAccessCustomer } from './decorators/salon-management-access-customer.decorator';
+import { Customer, CUSTOMER_STATUS } from './entities/customer.entity';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CUSTOMER_SALON_ROLE } from './entities/customer-salon.entity';
 
 @ApiTags('customers')
 @Controller('customers')
-@UseGuards(CustomerJwtAuthGuard, RolesGuard, OwnerGuard, ManagerOrOwnerGuard)
+@UseGuards(
+  CustomerJwtAuthGuard,
+  RolesGuard,
+  OwnerGuard,
+  ManagerOrOwnerGuard,
+  SalonOwnershipGuard,
+  SalonManagementGuard,
+  SalonManagementAccessCustomerGuard,
+)
 @ApiBearerAuth()
 export class CustomersController {
   constructor(
@@ -43,31 +61,6 @@ export class CustomersController {
     private readonly customerSalonsService: CustomerSalonsService,
     private readonly jwtService: JwtService,
   ) {}
-
-  @Post()
-  @ApiOperation({ summary: 'Create a new customer and optionally assign to a salon with specified role' })
-  @ApiResponse({ status: 201, description: 'Customer created successfully and assigned to salon with role if salonUuid provided' })
-  @ApiResponse({ status: 400, description: 'Bad request - Invalid input data or phone number format' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - Can only assign customers to salons you own' })
-  @ApiResponse({ status: 409, description: 'Conflict - Customer with this email or phone number already exists' })
-  async create(@Body() createCustomerDto: CreateCustomerDto, @CurrentCustomer() currentCustomer: any) {
-    // If salonUuid is provided, validate that the logged-in customer owns this salon
-    if (createCustomerDto.salonUuid) {
-      await this.customerSalonsService.validateSalonOwnership(
-        currentCustomer.customer.uuid,
-        createCustomerDto.salonUuid
-      );
-    }
-
-    // Track which customer created this customer
-    return await this.customersService.create({
-      ...createCustomerDto,
-      status: CUSTOMER_STATUS.ACTIVED,
-      isOwner: false, // Staff/customers created by owners are not owners themselves
-      createdByUuid: currentCustomer.customer.uuid,
-    });
-  }
 
   @Post('register')
   @Public()
@@ -196,20 +189,6 @@ export class CustomersController {
     return this.buildSocialLoginResponse(currentUser);
   }
 
-  @Get()
-  @ManagerOrOwnerOnly()
-  @ApiOperation({ summary: 'Get customers based on role with pagination - Owners see managers/staff, Managers see staff only' })
-  @ApiResponse({ status: 200, description: 'Customers retrieved successfully with pagination' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - Only owners and managers can access customer lists' })
-  async findAll(
-    @Query() paginationDto: PaginationDto,
-    @CurrentCustomer() currentCustomer: any
-  ) {
-    // Always use pagination - require page and limit parameters
-    return await this.customersService.findAllPaginated(paginationDto, currentCustomer.customer);
-  }
-
   @Get('profile')
   @ApiOperation({ summary: 'Get current customer profile' })
   @ApiResponse({ status: 200, description: 'Customer profile retrieved successfully' })
@@ -218,50 +197,120 @@ export class CustomersController {
     return currentCustomer.customer;
   }
 
-  @Get(':uuid')
-  @ManagerOrOwnerOnly()
-  @ApiOperation({ summary: 'Get customer by UUID (only customers belonging to your salons)' })
-  @ApiResponse({ status: 200, description: 'Customer retrieved successfully' })
-  @ApiResponse({ status: 404, description: 'Customer not found' })
+  @Post(':salonUuid')
+  @SalonOwnership()
+  @ApiOperation({ summary: 'Create a new customer and optionally assign to a salon with specified role' })
+  @ApiResponse({ status: 201, description: 'Customer created successfully and assigned to salon with role if salonUuid provided' })
+  @ApiResponse({ status: 400, description: 'Bad request - Invalid input data or phone number format' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - Customer does not belong to your salons' })
-  async findOne(@Param('uuid') uuid: string, @CurrentCustomer() currentCustomer: any) {
-    // Validate that the requested customer belongs to the current customer's salons
-    await this.customersService.validateCustomerAccess(currentCustomer.customer, uuid);
-    return await this.customersService.findOne(uuid, true);
+  @ApiResponse({ status: 403, description: 'Forbidden - Can only assign customers to salons you own' })
+  @ApiResponse({ status: 409, description: 'Conflict - Customer with this email or phone number already exists' })
+  async create(
+    @Param('salonUuid', new ParseUUIDPipe({ version: '4' })) salonUuid: string,
+    @Body() createCustomerDto: CreateCustomerDto,
+    @CurrentCustomer() { customer }: { customer: Customer }
+  ) {
+    await this.customerSalonsService.validateSalonManagementCreateCustomerWithRole(
+      customer.uuid,
+      salonUuid,
+      createCustomerDto.roleName
+    );
+    return await this.customersService.create({
+      ...createCustomerDto,
+      isOwner: false,
+      salonUuid,
+      createdByUuid: customer.uuid,
+    });
   }
 
-  @Patch(':uuid')
+  @Get(':salonUuid')
   @ManagerOrOwnerOnly()
+  @ApiOperation({ summary: 'Get customers based on role with pagination - Owners see managers/staff, Managers see staff only' })
+  @ApiResponse({ status: 200, description: 'Customers retrieved successfully with pagination' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Only owners and managers can access customer lists' })
+  @ApiResponse({ status: 400, description: 'Bad Request - Invalid salon UUID format' })
+  async findAll(
+    @Param('salonUuid', new ParseUUIDPipe({ version: '4' })) salonUuid: string,
+    @Query() paginationDto: PaginationDto,
+    @CurrentCustomer() { customer }: { customer: Customer }
+  ) {
+    let roles: string[];
+    if (await this.customerSalonsService.isBusinessOwner(customer.uuid, salonUuid)) {
+      roles = [CUSTOMER_SALON_ROLE.OWNER, CUSTOMER_SALON_ROLE.MANAGER, CUSTOMER_SALON_ROLE.FRONT_DESK, CUSTOMER_SALON_ROLE.STAFF];
+    } else if (await this.customerSalonsService.isOwnerManager(customer.uuid, salonUuid)) {
+      roles = [CUSTOMER_SALON_ROLE.MANAGER, CUSTOMER_SALON_ROLE.FRONT_DESK, CUSTOMER_SALON_ROLE.STAFF];
+    } else if (await this.customerSalonsService.isManager(customer.uuid, salonUuid)) {
+      roles = [CUSTOMER_SALON_ROLE.FRONT_DESK, CUSTOMER_SALON_ROLE.STAFF];
+    } else {
+      throw new ForbiddenException('Unauthorized to access customers of this salon');
+    }
+    return await this.customersService.findAllPaginated(paginationDto, salonUuid, null, null, roles);
+  }
+
+  @Get(':salonUuid/:uuid')
+  @ManagerOrOwnerOnly()
+  @SalonManagement()
+  @SalonManagementAccessCustomer()
+  @ApiOperation({ summary: 'Get customer by UUID (only customers belonging to your salons)' })
+  @ApiResponse({ status: 200, description: 'Customer retrieved successfully' })
+  @ApiResponse({ status: 404, description: 'Customer not found in this salon' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Customer does not belong to your salons' })
+  async findOne(
+    @Param('salonUuid', new ParseUUIDPipe({ version: '4' })) salonUuid: string,
+    @Param('uuid', new ParseUUIDPipe({ version: '4' })) uuid: string,
+    @CurrentCustomer() { customer }: { customer: Customer }
+  ) {
+    // Guard already validated and fetched the customer
+    const foundCustomer = await this.customersService.findOne(salonUuid, uuid);
+    return foundCustomer;
+  }
+
+  @Patch(':salonUuid/:uuid')
+  @ManagerOrOwnerOnly()
+  @SalonManagement()
+  @SalonManagementAccessCustomer()
   @ApiOperation({ summary: 'Update customer (only customers belonging to your salons)' })
   @ApiResponse({ status: 200, description: 'Customer updated successfully' })
   @ApiResponse({ status: 400, description: 'Bad request - Invalid input data or phone number format' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden - Customer does not belong to your salons' })
-  @ApiResponse({ status: 404, description: 'Customer not found' })
+  @ApiResponse({ status: 404, description: 'Customer not found in this salon' })
   @ApiResponse({ status: 409, description: 'Conflict - Customer with this phone number already exists' })
-  async update(@Param('uuid') uuid: string, @Body() updateCustomerDto: UpdateCustomerDto, @CurrentCustomer() currentCustomer: any) {
-    // If salonUuid is provided, validate that the logged-in customer owns this salon
-    if (updateCustomerDto.salonUuid) {
-      await this.customerSalonsService.validateSalonOwnership(
-        currentCustomer.customer.uuid,
-        updateCustomerDto.salonUuid
+  async update(
+    @Param('salonUuid', new ParseUUIDPipe({ version: '4' })) salonUuid: string,
+    @Param('uuid', new ParseUUIDPipe({ version: '4' })) uuid: string,
+    @Body() updateCustomerDto: UpdateCustomerDto,
+    @CurrentCustomer() { customer }: { customer: Customer }
+  ) {
+    if (updateCustomerDto.roleName) {
+      await this.customerSalonsService.validateSalonManagementCreateCustomerWithRole(
+        customer.uuid,
+        salonUuid,
+        updateCustomerDto.roleName
       );
     }
-    return await this.customersService.update(uuid, updateCustomerDto);
+    // Guard already validated and fetched the customer
+    return await this.customersService.update(salonUuid, uuid, updateCustomerDto);
   }
 
-  @Delete(':uuid')
+  @Delete(':salonUuid/:uuid')
   @ManagerOrOwnerOnly()
+  @SalonManagement()
+  @SalonManagementAccessCustomer()
   @ApiOperation({ summary: 'Delete customer (only customers belonging to your salons)' })
   @ApiResponse({ status: 200, description: 'Customer deleted successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden - Customer does not belong to your salons' })
-  @ApiResponse({ status: 404, description: 'Customer not found' })
-  async remove(@Param('uuid') uuid: string, @CurrentCustomer() currentCustomer: any) {
-    // Validate that the requested customer belongs to the current customer's salons
-    await this.customersService.validateCustomerAccess(currentCustomer.customer, uuid);
-    return await this.customersService.remove(uuid);
+  @ApiResponse({ status: 404, description: 'Customer not found in this salon' })
+  async remove(
+    @Param('salonUuid', new ParseUUIDPipe({ version: '4' })) salonUuid: string,
+    @Param('uuid', new ParseUUIDPipe({ version: '4' })) uuid: string,
+    @CurrentCustomer() { customer }: { customer: Customer }
+  ) {
+    // Guard already validated and fetched the customer
+    return await this.customersService.remove(salonUuid, uuid);
   }
 
   private buildSocialLoginResponse(authResult: any) {

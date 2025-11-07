@@ -14,7 +14,7 @@ import { Plan, PLAN_STATUS, PLAN_TYPE, BILLING_INTERVAL } from '../src/plans/ent
 import { Payment, PAYMENT_STATUS } from '../src/payments/entities/payment.entity';
 import { Subscription, SUBSCRIPTION_STATUS } from '../src/payments/entities/subscription.entity';
 import { Stripe as StripeMapping } from '../src/payments/entities/stripe.entity';
-import { CUSTOMER_STATUS } from '../src/customers/entities/customer.entity';
+import { CUSTOMER_STATUS, Customer } from '../src/customers/entities/customer.entity';
 import { Salon } from '../src/salons/entities/salon.entity';
 import { CustomerSalon, CUSTOMER_SALON_ROLE } from '../src/customers/entities/customer-salon.entity';
 
@@ -38,6 +38,7 @@ describe('Payments / Stripe E2E', () => {
   let planRepository: Repository<Plan>;
   let salonRepository: Repository<Salon>;
   let customerSalonRepository: Repository<CustomerSalon>;
+  let customerRepository: Repository<Customer>;
 
   const createdCustomerUuids: string[] = [];
   const createdSalonUuids: string[] = [];
@@ -148,6 +149,7 @@ describe('Payments / Stripe E2E', () => {
         password,
         name: displayName,
         phone: `+84${phoneSuffix}`,
+        roleName: 'BUSINESS_OWNER',
       });
 
     if (registerResponse.status !== 201) {
@@ -160,17 +162,33 @@ describe('Payments / Stripe E2E', () => {
     const customerUuid = customer.uuid;
     createdCustomerUuids.push(customerUuid);
 
-    await customersService.update(customerUuid, { status: CUSTOMER_STATUS.ACTIVED });
-
     const loginResponse = await request(httpServer)
       .post('/customers/login')
       .send({ email, password })
       .expect(200);
 
+    const token = loginResponse.body.accessToken as string;
+
+    // Create a salon for the customer
+    const salonResponse = await request(httpServer)
+      .post('/salons')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: `${label} Salon ${Date.now()}`,
+        address: '123 Test St',
+        phone: `+84${Math.floor(1000000000 + Math.random() * 9000000000)}`,
+        email: email, // Use the same email as the customer
+      })
+      .expect(201);
+
+    const salonUuid = salonResponse.body.uuid;
+    createdSalonUuids.push(salonUuid);
+
     return {
       uuid: customerUuid,
-      token: loginResponse.body.accessToken as string,
+      token,
       name: displayName,
+      salonUuid,
     };
   };
 
@@ -214,6 +232,7 @@ describe('Payments / Stripe E2E', () => {
     planRepository = dataSource.getRepository(Plan);
     salonRepository = dataSource.getRepository(Salon);
     customerSalonRepository = dataSource.getRepository(CustomerSalon);
+    customerRepository = dataSource.getRepository(Customer);
 
     (paymentsService as any).stripe = stripeStub;
 
@@ -279,7 +298,7 @@ describe('Payments / Stripe E2E', () => {
 
     for (const customerUuid of createdCustomerUuids) {
       try {
-        await customersService.remove(customerUuid);
+        await customerRepository.delete({ uuid: customerUuid });
       } catch {
         // ignore cleanup failures
       }

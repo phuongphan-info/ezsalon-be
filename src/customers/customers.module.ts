@@ -6,7 +6,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Customer } from './entities/customer.entity';
 import { CustomerSalon } from './entities/customer-salon.entity';
 import { CustomersController } from './customers.controller';
-import { CustomerSalonsController } from './customer-salons.controller';
 import { CustomersService } from './customers.service';
 import { CustomerSalonsService } from './customer-salons.service';
 import { CustomerJwtStrategy } from './strategies/customer-jwt.strategy';
@@ -27,7 +26,7 @@ import { ManagerOrOwnerGuard } from './guards/manager-or-owner.guard';
       inject: [ConfigService],
     }),
   ],
-  controllers: [CustomersController, CustomerSalonsController],
+  controllers: [CustomersController],
   providers: [CustomersService, CustomerSalonsService, CustomerJwtStrategy, RolesGuard, OwnerGuard, ManagerOrOwnerGuard],
   exports: [CustomersService, CustomerSalonsService],
 })

@@ -19,7 +19,7 @@ export class CreateUserCustomerDto extends CreateCustomerDefaultDto {
   })
   @IsEnum(CUSTOMER_SALON_ROLE)
   @IsOptional()
-  customerRoleName?: string;
+  roleName: string;
   
   @ApiProperty({ 
     description: 'The customer who created the customer (optional)', 
@@ -55,7 +55,7 @@ export class UpdateUserCustomerDto extends UpdateCustomerDefaultDto {
   })
   @IsEnum(CUSTOMER_SALON_ROLE)
   @IsOptional()
-  customerRoleName?: string;
+  roleName?: string;
 
   @ApiProperty({ 
     description: 'Customer Status (optional, defaults to ACTIVED)', 

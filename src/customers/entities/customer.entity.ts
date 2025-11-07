@@ -99,6 +99,21 @@ export class Customer {
   @OneToMany(() => SocialAccount, (socialAccount) => socialAccount.customer, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   socialAccounts: SocialAccount[];
 
+  @Expose()
+  @ApiProperty({ 
+    description: 'Role to assign when auto-assigning to salon (optional, defaults to STAFF)', 
+    enum: [
+      CUSTOMER_SALON_ROLE.MANAGER,
+      CUSTOMER_SALON_ROLE.FRONT_DESK,
+      CUSTOMER_SALON_ROLE.STAFF,
+      CUSTOMER_SALON_ROLE.OWNER,
+      CUSTOMER_SALON_ROLE.BUSINESS_OWNER,
+    ],
+    example: CUSTOMER_SALON_ROLE.STAFF,
+    required: false 
+  })
+  roleName?: string;
+
   @ApiProperty({ description: 'Creation date' })
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
@@ -110,46 +125,4 @@ export class Customer {
   @ApiPropertyOptional({ description: 'Customer-salon relationships', type: () => [CustomerSalon] })
   @OneToMany(() => CustomerSalon, (customerSalon) => customerSalon.customer, { eager: true })
   customerSalons?: CustomerSalon[];
-
-  /**
-   * Role check helper methods
-   */
-  isBusinessOwner(): boolean {
-    return this.isOwner === true;
-  }
-
-  isOwnerManager(salonUuid: string): boolean {
-    return this.customerSalons?.some(cs => cs.roleName === CUSTOMER_SALON_ROLE.OWNER && cs.salonUuid === salonUuid) ?? false;
-  }
-
-  isManager(salonUuid: string): boolean {
-    return this.customerSalons?.some(cs => cs.roleName === CUSTOMER_SALON_ROLE.MANAGER && cs.salonUuid === salonUuid) ?? false;
-  }
-
-  isFrontDesk(salonUuid: string): boolean {
-    return this.customerSalons?.some(cs => cs.roleName === CUSTOMER_SALON_ROLE.FRONT_DESK && cs.salonUuid === salonUuid) ?? false;
-  }
-
-  isStaff(salonUuid: string): boolean {
-    return this.customerSalons?.some(cs => cs.roleName === CUSTOMER_SALON_ROLE.STAFF && cs.salonUuid === salonUuid) ?? false;
-  }
-
-  /**
-   * Get customer's highest role across all salons
-   */
-  getHighestRole(salonUuid: string): string {
-    if (this.isBusinessOwner()) {
-      return CUSTOMER_SALON_ROLE.BUSINESS_OWNER;
-    }
-    if (this.isOwnerManager(salonUuid)) {
-      return CUSTOMER_SALON_ROLE.OWNER;
-    }
-    if (this.isManager(salonUuid)) {
-      return CUSTOMER_SALON_ROLE.MANAGER;
-    }
-    if (this.isFrontDesk(salonUuid)) {
-      return CUSTOMER_SALON_ROLE.FRONT_DESK;
-    }
-    return CUSTOMER_SALON_ROLE.STAFF;
-  }
 }

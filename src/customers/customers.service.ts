@@ -5,7 +5,8 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
-import { Repository, In, DataSource } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
+import { plainToInstance } from 'class-transformer';
 import { Customer, CUSTOMER_TABLE_NAME } from './entities/customer.entity';
 import { CreateCustomerDto, UpdateCustomerDto } from './dto/customer.dto';
 import { CustomerSalonsService } from './customer-salons.service';
@@ -21,7 +22,6 @@ export class CustomersService {
     private readonly customerRepository: Repository<Customer>,
     private readonly customerSalonsService: CustomerSalonsService,
     private readonly cacheService: CacheService,
-    private readonly dataSource: DataSource,
   ) {}
 
   /**
@@ -29,90 +29,6 @@ export class CustomersService {
    */
   private async clearCustomerCaches(): Promise<void> {
     await this.cacheService.clearRelatedCaches(CUSTOMER_TABLE_NAME);
-  }
-
-  /**
-   * Determine customer role based on isOwner flag and salon relationships
-   */
-  private async determineCustomerRole(customer: Customer): Promise<string> {
-    if (customer.isOwner) {
-      return CUSTOMER_SALON_ROLE.BUSINESS_OWNER;
-    }
-    
-    // Get customer's salon roles
-    const customerSalons = await this.customerSalonsService.findByCustomerUuid(customer.uuid);
-    
-    if (customerSalons.length > 0) {
-      // Get highest priority role
-      const roles = customerSalons.map(cs => cs.roleName);
-      if (roles.includes(CUSTOMER_SALON_ROLE.OWNER)) {
-        return CUSTOMER_SALON_ROLE.OWNER;
-      } else if (roles.includes(CUSTOMER_SALON_ROLE.MANAGER)) {
-        return CUSTOMER_SALON_ROLE.MANAGER;
-      } else if (roles.includes(CUSTOMER_SALON_ROLE.FRONT_DESK)) {
-        return CUSTOMER_SALON_ROLE.FRONT_DESK;
-      } else if (roles.includes(CUSTOMER_SALON_ROLE.STAFF)) {
-        return CUSTOMER_SALON_ROLE.STAFF;
-      }
-    }
-    
-    return CUSTOMER_SALON_ROLE.STAFF; // Default role
-  }
-
-  /**
-   * Get allowed customer UUIDs based on current customer's role and salon relationships
-   * @param currentCustomer - The customer making the request
-   * @returns Array of customer UUIDs that the current customer can access
-   */
-  private async getAllowedCustomerUuids(currentCustomer: Customer): Promise<string[]> {
-    // Get all customer-salon relationships for the current customer
-    const customerSalons = await this.customerSalonsService.findByCustomerUuid(currentCustomer.uuid);
-    
-    if (customerSalons.length === 0) {
-      // Customer has no salon relationships, return empty array
-      return [];
-    }
-
-    // Get all salon UUIDs where the current customer has OWNER or MANAGER role
-    const ownedSalons = customerSalons
-      .filter(cs => cs.roleName === CUSTOMER_SALON_ROLE.OWNER)
-      .map(cs => cs.salonUuid);
-    
-    const managedSalons = customerSalons
-      .filter(cs => cs.roleName === CUSTOMER_SALON_ROLE.MANAGER)  
-      .map(cs => cs.salonUuid);
-
-    let allowedCustomerUuids: string[] = [];
-
-    if (ownedSalons.length > 0) {
-      // If user is an owner, they can see managers and staff in their salons
-      const ownedSalonRelations = await this.customerSalonsService.findBySalonUuids(ownedSalons);
-      allowedCustomerUuids = ownedSalonRelations
-        .filter(
-          cs =>
-            cs.roleName === CUSTOMER_SALON_ROLE.MANAGER ||
-            cs.roleName === CUSTOMER_SALON_ROLE.FRONT_DESK ||
-            cs.roleName === CUSTOMER_SALON_ROLE.STAFF,
-        )
-        .map(cs => cs.customerUuid);
-    }
-
-    if (managedSalons.length > 0) {
-      // If user is a manager, they can see staff in their managed salons
-      const managedSalonRelations = await this.customerSalonsService.findBySalonUuids(managedSalons);
-      const staffUuids = managedSalonRelations
-        .filter(
-          cs =>
-            cs.roleName === CUSTOMER_SALON_ROLE.FRONT_DESK ||
-            cs.roleName === CUSTOMER_SALON_ROLE.STAFF,
-        )
-        .map(cs => cs.customerUuid);
-      
-      allowedCustomerUuids = [...allowedCustomerUuids, ...staffUuids];
-    }
-
-    // Remove duplicates and return unique customer UUIDs
-    return [...new Set(allowedCustomerUuids)];
   }
 
   async create(createCustomerDto: CreateCustomerDto): Promise<Customer> {
@@ -139,8 +55,8 @@ export class CustomersService {
     // Hash the password before saving
     const hashedPassword = await bcrypt.hash(createCustomerDto.password, 10);
 
-    // Extract salonUuid and customerRoleName from DTO before creating customer
-    const { salonUuid, customerRoleName, ...customerData } = createCustomerDto;
+    // Extract salonUuid and roleName from DTO before creating customer
+    const { salonUuid, roleName, ...customerData } = createCustomerDto;
 
     const customer = this.customerRepository.create({
       ...customerData,
@@ -155,7 +71,7 @@ export class CustomersService {
         await this.customerSalonsService.create({
           customerUuid: savedCustomer.uuid,
           salonUuid: salonUuid,
-          roleName: customerRoleName || CUSTOMER_SALON_ROLE.STAFF,
+          roleName: roleName || CUSTOMER_SALON_ROLE.STAFF,
         });
       } catch (error) {
         console.warn(`Failed to assign customer ${savedCustomer.uuid} to salon ${salonUuid}:`, error.message);
@@ -170,99 +86,127 @@ export class CustomersService {
     return customerWithoutPassword as Customer;
   }
 
-  async findAllPaginated(paginationDto: PaginationDto, currentCustomer?: Customer, currentUser?: User): Promise<PaginatedResponse<Customer & { role?: string }>> {
+  async findAllPaginated(
+    paginationDto: PaginationDto,
+    salonUuid: string,
+    customerUuid?: string | null,
+    userUuid?: string | null,
+    roles?: string[] | null,
+    search?: string | null,
+    status?: string | null
+  ): Promise<PaginatedResponse<Record<string, any>>> {
     const { page, limit } = paginationDto;
     return await this.cacheService.caching(
       CUSTOMER_TABLE_NAME,
-      { page, limit, roleAccess: currentCustomer?.uuid, currentUser: currentUser?.uuid },
+      { page, limit, salonUuid, userUuid, roles },
       async () => {
-        let customers: Customer[];
-        let total: number;
+        const queryBuilder = this.customerRepository
+          .createQueryBuilder('customers')
+          .innerJoin(CustomerSalon, 'cs', 'cs.customerUuid = customers.uuid')
+          .where('cs.salonUuid = :salonUuid', { salonUuid });
 
-        if (currentUser) {
-          [customers, total] = await this.customerRepository.findAndCount({
-            where: { createdByUserUuid: currentUser.uuid },
-            skip: (page - 1) * limit,
-            take: limit,
-            order: { createdAt: 'DESC' },
-          });
-        } else if (currentCustomer) {
-          // Get allowed customer UUIDs based on role
-          const allowedCustomerUuids = await this.getAllowedCustomerUuids(currentCustomer);
-          
-          if (allowedCustomerUuids.length === 0) {
-            // No customers to show
-            return new PaginatedResponse([], 0, page, limit);
-          }
-
-          // Fetch the customers with pagination
-          [customers, total] = await this.customerRepository.findAndCount({
-            where: { uuid: In(allowedCustomerUuids) },
-            skip: (page - 1) * limit,
-            take: limit,
-            order: { createdAt: 'DESC' },
-          });
-        } else {
-          // If no current customer provided, get all customers (fallback behavior)
-          [customers, total] = await this.customerRepository.findAndCount({
-            skip: (page - 1) * limit,
-            take: limit,
-            order: { createdAt: 'DESC' },
-          });
+        if (customerUuid) {
+          queryBuilder.andWhere('cs.customerUuid = :customerUuid', { customerUuid });
         }
 
-        // Add role information to each customer and exclude password
-        const customersWithRoles = await Promise.all(
-          customers.map(async (customer) => {
-            const role = await this.determineCustomerRole(customer);
-            const { password, ...customerWithoutPassword } = customer;
-            return { ...customerWithoutPassword, role };
-          })
-        );
+        if (userUuid) {
+          queryBuilder.andWhere('customers.createdByUserUuid = :userUuid', { userUuid });
+        }
+
+        if (roles && roles.length > 0) {
+          queryBuilder.andWhere('cs.roleName IN (:...roles)', { roles });
+        }
+
+        if (status) {
+          queryBuilder.andWhere('customers.status = :status', { status });
+        }
+
+        if (search) {
+          queryBuilder.andWhere(
+            '(customers.name LIKE :search OR customers.email LIKE :search)',
+            { search: `%${search}%` }
+          );
+        }
+
+        queryBuilder.orderBy('customers.createdAt', 'DESC');
+        queryBuilder.addSelect('cs.roleName', 'role');
+
+        const [countResult] = await queryBuilder.clone().select('COUNT(DISTINCT customers.uuid)', 'count').getRawMany();
+        const total = Number(countResult?.count || 0);
+
+        const result = await queryBuilder
+          .skip((page - 1) * limit)
+          .take(limit)
+          .getRawAndEntities();
+
+        const customersWithRoles = result.entities.map((customer, index) => {
+          const raw = result.raw[index];
+          const { password, ...customerWithoutPassword } = customer;
+          return plainToInstance(
+            Customer,
+            {
+              ...customerWithoutPassword,
+              roleName: raw?.role
+            },
+            {
+              excludeExtraneousValues: false
+            }
+          );
+        });
 
         return new PaginatedResponse(customersWithRoles, total, page, limit);
       }
     );
   }
 
-  async findOneByUuid(uuid: string, withRole: boolean = false, currentUser?: User): Promise<Customer | (Customer & { role?: string })> {
-    return await this.findOne(uuid, withRole, currentUser);
-  }
-
-  async findOne(uuid: string, withRole: boolean = false, currentUser?: User): Promise<Customer | (Customer & { role?: string })> {
+  async findOne(salonUuid: string, uuid: string, userUuid?: string): Promise<Customer | (Customer & { role?: string })> {
     return await this.cacheService.caching(
       CUSTOMER_TABLE_NAME,
-      { uuid, withRole, currentUser: currentUser?.uuid },
+      { salonUuid, uuid, currentUser: userUuid },
       async () => {
-        const where: any = { uuid };
-        if (currentUser) {
-          where.createdByUserUuid = currentUser.uuid;
-        }
-        const customer = await this.customerRepository.findOne({
-          where,
-        });
-
-        if (!customer) {
-          throw new ForbiddenException(`Customer with ID ${uuid} not found`);
+        const queryBuilder = this.customerRepository
+          .createQueryBuilder('customers')
+          .innerJoin(CustomerSalon, 'cs', 'cs.customerUuid = customers.uuid')
+          .where('cs.salonUuid = :salonUuid', { salonUuid })
+          .andWhere('customers.uuid = :uuid', { uuid });
+          
+        if (userUuid) {
+          queryBuilder.andWhere('customers.createdByUserUuid = :userUuid', { userUuid });
         }
 
-        if (withRole) {
-          // Determine role and exclude password
-          const role = await this.determineCustomerRole(customer);
-          const { password, ...customerWithoutPassword } = customer;
-          return { ...customerWithoutPassword, role } as Customer & { role: string };
+        queryBuilder.addSelect('cs.roleName', 'role');
+        const result = await queryBuilder.getRawAndEntities();
+        const customer = result.entities[0];
+        if (customer && result.raw[0]) {
+          (customer as Customer & { roleName: string }).roleName = result.raw[0].role;
         }
-
-        // Return full customer entity (including password) for internal use
         return customer;
       }
     );
   }
 
-  async update(uuid: string, updateCustomerDto: UpdateCustomerDto, currentUser?: User): Promise<Customer> {
-    const customer = await this.findOne(uuid, false, currentUser);
+  async findOneByUuid(uuid: string, withRole: boolean = false, userUuid?: string): Promise<Customer | (Customer & { role?: string })> {
+    return await this.cacheService.caching(
+      CUSTOMER_TABLE_NAME,
+      { uuid, withRole, currentUser: userUuid },
+      async () => {
+        const queryBuilder = this.customerRepository
+          .createQueryBuilder('customers')
+          .innerJoin(CustomerSalon, 'cs', 'cs.customerUuid = customers.uuid')
+          .where('customers.uuid = :uuid', { uuid });
 
-    // Check for phone conflicts (if phone is being updated)
+        if (userUuid) {
+          queryBuilder.andWhere('customers.createdByUserUuid = :userUuid', { userUuid });
+        }
+
+        return await queryBuilder.getOne();
+      }
+    );
+  }
+
+  async update(salonUuid: string, uuid: string, updateCustomerDto: UpdateCustomerDto, userUuid?: string): Promise<Customer> {
+    const customer = await this.findOne(salonUuid, uuid, userUuid);
+
     if (updateCustomerDto.phone && updateCustomerDto.phone !== customer.phone) {
       const existingCustomerByPhone = await this.customerRepository.findOne({
         where: { phone: updateCustomerDto.phone },
@@ -272,54 +216,30 @@ export class CustomersService {
       }
     }
 
-    // Assign new values to customer
     Object.assign(customer, updateCustomerDto);
-    const { salonUuid, customerRoleName } = updateCustomerDto;
+    const { roleName } = updateCustomerDto;
 
-    // Assign or update salon and role if provided
-    if (salonUuid) {
-      // Remove existing CustomerSalon relations for this customer and salon
+    if (roleName) {
       await this.customerSalonsService.removeByCustomerAndSalon(customer.uuid, salonUuid);
-      // Create new CustomerSalon relation with new role
       await this.customerSalonsService.create({
         customerUuid: customer.uuid,
-        salonUuid,
-        roleName: customerRoleName || CUSTOMER_SALON_ROLE.STAFF,
+        salonUuid,  
+        roleName: roleName || CUSTOMER_SALON_ROLE.STAFF,
       });
     }
 
     const updatedCustomer = await this.customerRepository.save(customer);
 
-    // Clear cache after update
     await this.clearCustomerCaches();
 
     return updatedCustomer;
   }
 
-  async remove(uuid: string, currentUser?: User): Promise<void> {
-    const customer = await this.findOne(uuid, false, currentUser);
-    
-    // Protect admin account from deletion
-    if (customer.email === 'admin@ezsalon.com') {
-      throw new ForbiddenException('Cannot delete admin account');
-    }
-    
-    // Get all salons owned by this customer using service (no direct repository usage)
-    const customerSalonRelations = await this.customerSalonsService.findByCustomerUuid(uuid);
-    const ownedSalonUuids = customerSalonRelations
-      .filter(cs => cs.roleName === CUSTOMER_SALON_ROLE.OWNER)
-      .map(cs => cs.salonUuid);
+  async remove(salonUuid: string, uuid: string, userUuid?: string): Promise<void> {
+    const customer = await this.findOne(salonUuid, uuid, userUuid);
 
-    // Delete all salons owned by this customer
-    // This will cascade delete all customer_salon records for those salons
-    for (const salonUuid of ownedSalonUuids) {
-      await this.dataSource.query('DELETE FROM salons WHERE uuid = ?', [salonUuid]);
-    }
-
-    // Delete the customer (this will cascade delete remaining customer_salon records)
     await this.customerRepository.remove(customer);
 
-    // Clear cache after delete
     await this.clearCustomerCaches();
   }
 
@@ -347,63 +267,12 @@ export class CustomersService {
     );
   }
 
-  async findCustomersByRole(currentCustomer: Customer, paginationDto?: PaginationDto): Promise<Customer[] | PaginatedResponse<Customer>> {
-    if (paginationDto) {
-      // Use the existing findAllPaginated method for paginated results
-      return await this.findAllPaginated(paginationDto, currentCustomer);
-    }
-    
-    // For non-paginated results (backward compatibility)
-    return await this.cacheService.caching(
-      CUSTOMER_TABLE_NAME,
-      { roleAccess: currentCustomer.uuid, pagination: false },
-      async () => {
-        // Get allowed customer UUIDs based on role
-        const allowedCustomerUuids = await this.getAllowedCustomerUuids(currentCustomer);
-        
-        if (allowedCustomerUuids.length === 0) {
-          return [];
-        }
-
-        // Return all results without pagination
-        const customers = await this.customerRepository.find({
-          where: { uuid: In(allowedCustomerUuids) },
-          order: { createdAt: 'DESC' },
-        });
-
-        // Exclude password from results
-        return customers.map(customer => {
-          const { password, ...customerWithoutPassword } = customer;
-          return customerWithoutPassword as Customer;
-        });
-      }
-    );
-  }
-
-  async validateCustomerAccess(currentCustomer: Customer, targetCustomerUuid: string): Promise<void> {
-    // Allow access to own profile
-    if (currentCustomer.uuid === targetCustomerUuid) {
-      return;
-    }
-
-    // Get all customers that the current customer can access based on their role
-    const accessibleCustomers = await this.findCustomersByRole(currentCustomer) as Customer[];
-    
-    // Check if the target customer is in the list of accessible customers
-    const hasAccess = accessibleCustomers.some(customer => customer.uuid === targetCustomerUuid);
-    
-    if (!hasAccess) {
-      throw new ForbiddenException('You do not have access to this customer');
-    }
-  }
-
   async createSocialCustomer(customerData: {
     email: string;
     firstName?: string;
     lastName?: string;
     avatar?: string;
   }): Promise<Customer> {
-    // Check if customer already exists
     const existingCustomer = await this.customerRepository.findOne({
       where: { email: customerData.email },
     });
@@ -412,7 +281,6 @@ export class CustomersService {
       throw new ConflictException('Customer with this email already exists');
     }
 
-    // Create customer without social data (will be stored in separate SocialAccount)
     const customer = this.customerRepository.create({
       email: customerData.email,
       name: customerData.firstName && customerData.lastName 
@@ -424,7 +292,6 @@ export class CustomersService {
 
     const savedCustomer = await this.customerRepository.save(customer);
     
-    // Clear cache after create
     await this.clearCustomerCaches();
     
     return savedCustomer;

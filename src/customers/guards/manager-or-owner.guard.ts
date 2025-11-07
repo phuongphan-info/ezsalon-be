@@ -42,7 +42,7 @@ export class ManagerOrOwnerGuard implements CanActivate {
     const customerSalons = await this.customerSalonsService.findByCustomerUuid(user.customer.uuid);
     
     const hasOwnerOrManagerRole = customerSalons.some(
-      cs => cs.roleName === CUSTOMER_SALON_ROLE.OWNER || cs.roleName === CUSTOMER_SALON_ROLE.MANAGER
+      cs => [CUSTOMER_SALON_ROLE.BUSINESS_OWNER, CUSTOMER_SALON_ROLE.OWNER, CUSTOMER_SALON_ROLE.MANAGER].includes(cs.roleName as CUSTOMER_SALON_ROLE)
     );
 
     if (!hasOwnerOrManagerRole) {

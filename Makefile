@@ -93,10 +93,10 @@ test-e2e-cov:
 	docker-compose exec app npm run test:e2e:cov
 test-e2e-auth:
 	docker-compose exec app npm run test:e2e:auth
-test-e2e-auth-customers:
-	docker-compose exec app npm run test:e2e:auth-customers
 test-e2e-auth-roles:
 	docker-compose exec app npm run test:e2e:auth-roles
+test-e2e-user-customers:
+	docker-compose exec app npm run test:e2e:user-customers
 test-e2e-customers:
 	docker-compose exec app npm run test:e2e:customers
 test-e2e-plans:

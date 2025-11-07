@@ -194,30 +194,120 @@ export class CustomerSalonsService {
     }
   }
 
-  /**
-   * Check if the current customer is the owner of the specified salon
-   * @param customerUuid - UUID of the customer to check
-   * @param salonUuid - UUID of the salon
-   * @throws ForbiddenException if customer is not the salon owner
-   */
+  async isBusinessOwner(customerUuid: string, salonUuid: string): Promise<boolean> {
+    return await this.isRole(customerUuid, salonUuid, CUSTOMER_SALON_ROLE.BUSINESS_OWNER);
+  }
+
+  async isOwnerManager(customerUuid: string, salonUuid: string): Promise<boolean> {
+    return await this.isRole(customerUuid, salonUuid, CUSTOMER_SALON_ROLE.OWNER);
+  }
+
+  async isManager(customerUuid: string, salonUuid: string): Promise<boolean> {
+    return await this.isRole(customerUuid, salonUuid, CUSTOMER_SALON_ROLE.MANAGER);
+  }
+
+  async isFrontDesk(customerUuid: string, salonUuid: string): Promise<boolean> {
+    return await this.isRole(customerUuid, salonUuid, CUSTOMER_SALON_ROLE.FRONT_DESK);
+  }
+
+  async isStaff(customerUuid: string, salonUuid: string): Promise<boolean> {
+    return await this.isRole(customerUuid, salonUuid, CUSTOMER_SALON_ROLE.STAFF);
+  }
+
+  async isRole(customerUuid: string, salonUuid: string, role: CUSTOMER_SALON_ROLE): Promise<boolean> {
+    try {
+      const salonOwnership = await this.findByCustomerAndSalon(customerUuid, salonUuid);
+
+      return salonOwnership.roleName === role;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async validateSalonManagementCreateCustomerWithRole(customerUuid: string, salonUuid: string, roleName: string): Promise<void> {
+    if (roleName === CUSTOMER_SALON_ROLE.BUSINESS_OWNER) {
+      throw new ForbiddenException(`Cannot able to create customer with ${roleName} role`);
+    }
+    const currentIsOwnerManager = await this.isOwnerManager(
+      customerUuid,
+      salonUuid
+    );
+    if (currentIsOwnerManager && roleName === CUSTOMER_SALON_ROLE.OWNER) {
+      throw new ForbiddenException(`Cannot able to create customer with ${roleName} role`);
+    }
+    const currentIsManager = await this.isManager(
+      customerUuid,
+      salonUuid
+    );
+    if (currentIsManager && [CUSTOMER_SALON_ROLE.OWNER, CUSTOMER_SALON_ROLE.MANAGER].includes(roleName as CUSTOMER_SALON_ROLE)) {
+      throw new ForbiddenException(`Cannot able to create customer with ${roleName} role`);
+    }
+  }
+
+  async validateSalonManagementAccessCustomer(customerUuid: string, salonUuid: string, foundCustomerUuid: string): Promise<void> {
+      const currentIsOwnerManager = await this.isOwnerManager(
+        customerUuid,
+        salonUuid
+      );
+      const foundCustomerIsBusinessOwner = await this.isBusinessOwner(
+        foundCustomerUuid,
+        salonUuid
+      );
+      const foundCustomerIsOwnerManager = await this.isOwnerManager(
+        foundCustomerUuid,
+        salonUuid
+      );
+      if (currentIsOwnerManager && (foundCustomerIsBusinessOwner || foundCustomerIsOwnerManager)) {
+        throw new ForbiddenException(`Customer with UUID "${foundCustomerUuid}" not found in salon "${salonUuid}"`);
+      }
+  
+      const currentIsManager = await this.isManager(
+        customerUuid,
+        salonUuid
+      );
+      const foundCustomerIsManager = await this.isManager(
+        foundCustomerUuid,
+        salonUuid
+      );
+      if (currentIsManager && (foundCustomerIsBusinessOwner || foundCustomerIsOwnerManager || foundCustomerIsManager)) {
+        throw new ForbiddenException(`Customer with UUID "${foundCustomerUuid}" not found in salon "${salonUuid}"`);
+      }
+  }
+
+  async validateSalonManagement(customerUuid: string, salonUuid: string): Promise<void> {
+    try {
+      const salonOwnership = await this.findByCustomerAndSalon(customerUuid, salonUuid);
+
+      if (!salonOwnership) {
+        throw new ForbiddenException('You do not have permission to manage this salon');
+      }
+
+      if ([CUSTOMER_SALON_ROLE.BUSINESS_OWNER, CUSTOMER_SALON_ROLE.OWNER, CUSTOMER_SALON_ROLE.MANAGER].includes(salonOwnership.roleName as CUSTOMER_SALON_ROLE) === false) {
+        throw new ForbiddenException('You do not have permission to manage this salon');
+      }
+    } catch (error) {
+      if (error instanceof ForbiddenException) {
+        throw error;
+      }
+      throw new ForbiddenException(error.message);
+    }
+  }
+
   async validateSalonOwnership(customerUuid: string, salonUuid: string): Promise<void> {
     try {
-      const salonOwnership = await this.customerSalonRepository.findOne({
-        where: { customerUuid, salonUuid },
-      });
+      const salonOwnership = await this.findByCustomerAndSalon(customerUuid, salonUuid);
       
       if (!salonOwnership) {
         throw new ForbiddenException('Only salon owners can perform this action');
       }
-      
-      if (salonOwnership.roleName !== CUSTOMER_SALON_ROLE.OWNER) {
+
+      if ([CUSTOMER_SALON_ROLE.BUSINESS_OWNER, CUSTOMER_SALON_ROLE.OWNER].includes(salonOwnership.roleName as CUSTOMER_SALON_ROLE) === false) {
         throw new ForbiddenException('Only salon owners can perform this action');
       }
     } catch (error) {
       if (error instanceof ForbiddenException) {
         throw error;
       }
-      // If any other error occurs (database error, etc.), treat as unauthorized
       throw new ForbiddenException(error.message);
     }
   }

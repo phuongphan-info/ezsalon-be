@@ -1,740 +1,702 @@
-import { INestApplication } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { v4 as uuid } from 'uuid';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { CacheService } from '../src/common/services/cache.service';
-import { CustomersService } from '../src/customers/customers.service';
 import { CUSTOMER_STATUS } from '../src/customers/entities/customer.entity';
+import { CUSTOMER_SALON_ROLE } from '../src/customers/entities/customer-salon.entity';
 
-describe('Customers E2E', () => {
+describe('Customers By Business Owner E2E', () => {
   let app: INestApplication;
   let cacheService: CacheService;
-  let customersService: CustomersService;
   let dataSource: DataSource;
-  let accessToken: string;
-  let testCustomerUuid: string;
-  let salonUuid: string;
-  let managerCustomerUuid: string;
-  let managerCustomerEmail: string;
-  let staffCustomerEmail: string;
-  let staffCustomerUuid: string;
-  let unassignedStaffCustomerEmail: string;
-  let unassignedStaffCustomerUuid: string;
 
-  // Array to collect all created test customer UUIDs for cleanup
+  // Track created resources for cleanup
   const createdCustomerUuids: string[] = [];
+  const createdSalonUuids: string[] = [];
+
+  // Helper function to generate unique email
+  const generateUniqueEmail = () => `test-${Date.now()}-${uuid()}@ezsalon.io`;
   
-  const generateUniqueEmail = () => `test-e2e-${Date.now()}-${uuid()}@ezsalon.io`;
-  
-  let testCustomer = {
-    email: generateUniqueEmail(),
-    password: 'TestPassword123!',
-    name: 'Test E2E Customer',
-    phone: '+84987654321'
+  // Helper function to generate unique phone number
+  const generateUniquePhone = () => `+84${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+
+  // Helper function to activate customer
+  const activateCustomer = async (customerUuid: string) => {
+    await dataSource.query(
+      'UPDATE customers SET status = ? WHERE uuid = ?',
+      [CUSTOMER_STATUS.ACTIVED, customerUuid]
+    );
   };
 
+  // Test users with different roles
+  let businessOwner1: any;
+  let businessOwner2: any;
+
+  // Tokens
+  let businessOwner1Token: string;
+  let businessOwner2Token: string;
+  let owner1Token: string;
+  let manager1Token: string;
+  let frontDesk1Token: string;
+  let staff1Token: string;
+
+  // Salons
+  let salon1Uuid: string;
+  let salon2Uuid: string;
+
+  // Test customers in salon1
+  let salon1Owner: any;
+  let salon1Manager: any;
+  let salon1FrontDesk: any;
+  let salon1Staff: any;
+
   beforeAll(async () => {
-    const moduleFixture = await Test.createTestingModule({
+    const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.useGlobalPipes(new ValidationPipe());
     cacheService = moduleFixture.get<CacheService>(CacheService);
-    customersService = moduleFixture.get<CustomersService>(CustomersService);
     dataSource = moduleFixture.get<DataSource>(DataSource);
     
     await app.init();
-
-    // Clear cache before tests
     await cacheService.reset();
-
-    // Generate fresh unique customer data
-    testCustomer = {
-      email: generateUniqueEmail(),
-      password: 'TestPassword123!',
-      name: 'Test E2E Customer',
-      phone: '+84987654321'
-    };
   });
 
-
-
-  /**
-   * Delete all tracked test customers
-   */
-  const cleanupAllTestCustomers = async () => {
-    try {
-      let deletedCount = 0;
-      
-      // Delete each tracked customer using the service
-      for (const uuid of createdCustomerUuids) {
-        try {
-          await customersService.remove(uuid);
-          deletedCount++;
-        } catch (error) {
-        }
-      }
-    } catch (error) {
-    }
-  };
-
   afterAll(async () => {
-    // Delete all test customers
-    await cleanupAllTestCustomers();
-    
-    // Clear cache and close app
+    // Cleanup: Delete all created customers
+    for (const uuid of createdCustomerUuids) {
+      try {
+        await dataSource.query('DELETE FROM customers WHERE uuid = ?', [uuid]);
+      } catch (error) {
+        // Ignore errors during cleanup
+      }
+    }
+
     await cacheService.reset();
     await app.close();
   });
 
-  describe('Customer E2E Flow', () => {
-    it('1. REGISTER - should register a new owner customer', async () => {
+  describe('Setup: Create test users and salons', () => {
+    it('1. Create Business Owner 1 and Salon 1', async () => {
+      // Register Business Owner 1
       const response = await request(app.getHttpServer())
         .post('/customers/register')
-        .send(testCustomer)
-        .expect(201);
+        .send({
+          email: generateUniqueEmail(),
+          password: 'password123',
+          name: 'Business Owner 1',
+          phone: generateUniquePhone(),
+          roleName: CUSTOMER_SALON_ROLE.BUSINESS_OWNER
+        });
 
-      expect(response.body).toHaveProperty('accessToken');
-      expect(response.body).toHaveProperty('customer');
-      expect(response.body.customer.email).toBe(testCustomer.email);
-      expect(response.body.customer.name).toBe(testCustomer.name);
-      testCustomerUuid = response.body.customer.uuid;
-      createdCustomerUuids.push(testCustomerUuid);
-    });
+      expect(response.status).toBe(201);
 
-    it('2. LOGIN - should login with registered owner customer', async () => {
-      // First activate the customer for login
-      await customersService.update(testCustomerUuid, {
-        status: CUSTOMER_STATUS.ACTIVED
-      });
-
-      const response = await request(app.getHttpServer())
+      businessOwner1 = response.body.customer;
+      createdCustomerUuids.push(businessOwner1.uuid);
+      
+      // Activate and login
+      await activateCustomer(businessOwner1.uuid);
+      
+      const loginResponse = await request(app.getHttpServer())
         .post('/customers/login')
         .send({
-          email: testCustomer.email,
-          password: testCustomer.password
+          email: businessOwner1.email,
+          password: 'password123'
         })
         .expect(200);
 
-      expect(response.body).toHaveProperty('accessToken');
-      expect(response.body).toHaveProperty('customer');
-      expect(response.body.customer.email).toBe(testCustomer.email);
+      businessOwner1Token = loginResponse.body.accessToken;
 
-      accessToken = response.body.accessToken;
-    });
-
-    it('3. PROFILE - should get owner customer profile', async () => {
-      const response = await request(app.getHttpServer())
-        .get(`/customers/${testCustomerUuid}`)
-        .set('Authorization', `Bearer ${accessToken}`)
-        .expect(200);
-
-      expect(response.body.uuid).toBe(testCustomerUuid);
-      expect(response.body.email).toBe(testCustomer.email);
-      expect(response.body.name).toBe(testCustomer.name);
-      expect(response.body.phone).toBe(testCustomer.phone);
-    });
-
-    it('3.1. CREATE CUSTOMER - should create a new customer', async () => {
-      // First test: GET /customers should return no customers initially
-      const initialResponse = await request(app.getHttpServer())
-        .get('/customers?page=1&limit=10')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .expect(200);
-
-      expect(initialResponse.body).toHaveProperty('data');
-      expect(initialResponse.body).toHaveProperty('total');
-      expect(initialResponse.body.total).toBe(0);
-      expect(initialResponse.body.data).toHaveLength(0);
-
-      // Second test: Create a new staff customer (not belonging to any salon)
-      const newCustomerData = {
-        email: generateUniqueEmail(),
-        password: 'TestPassword123!',
-        name: 'Test New Staff Customer',
-        phone: '+84987654322'
-      };
-
-      const response = await request(app.getHttpServer())
-        .post('/customers')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send(newCustomerData)
-        .expect(201);
-
-      expect(response.body).toHaveProperty('uuid');
-      expect(response.body.email).toBe(newCustomerData.email);
-      expect(response.body.name).toBe(newCustomerData.name);
-      expect(response.body.phone).toBe(newCustomerData.phone);
-      // Verify customer doesn't belong to any salon initially
-      expect(response.body).not.toHaveProperty('salonUuid');
-
-      unassignedStaffCustomerEmail = newCustomerData.email;
-      unassignedStaffCustomerUuid = response.body.uuid;
-      createdCustomerUuids.push(unassignedStaffCustomerUuid);
-    });
-
-    it('3.1.1. GET CUSTOMERS - should have only 0 customer in list', async () => {
-      const response = await request(app.getHttpServer())
-        .get('/customers?page=1&limit=10')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .expect(200);
-
-      expect(response.body).toHaveProperty('data');
-      expect(response.body).toHaveProperty('total');
-      expect(response.body.total).toBe(0);
-      expect(response.body.data).toHaveLength(0);
-    });
-
-    it('3.2. CREATE SALON - should create a new salon', async () => {
-      const salonData = {
-        name: 'Test E2E Salon',
-        address: '123 Test Street, Test City',
-        phone: '+84123456789',
-        email: 'testsalon@ezsalon.io',
-        description: 'A test salon for e2e testing'
-      };
-
-      const response = await request(app.getHttpServer())
+      // Create Salon 1
+      const salonResponse = await request(app.getHttpServer())
         .post('/salons')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send(salonData)
+        .set('Authorization', `Bearer ${businessOwner1Token}`)
+        .send({
+          name: 'Salon 1',
+          address: '123 Test St',
+          phone: '+84987654321',
+          email: generateUniqueEmail()
+        })
         .expect(201);
 
-      expect(response.body).toHaveProperty('uuid');
-      expect(response.body.name).toBe(salonData.name);
-      expect(response.body.address).toBe(salonData.address);
-      expect(response.body.phone).toBe(salonData.phone);
-      expect(response.body.email).toBe(salonData.email);
-      expect(response.body.description).toBe(salonData.description);
-
-      salonUuid = response.body.uuid;
+      salon1Uuid = salonResponse.body.uuid;
+      createdSalonUuids.push(salon1Uuid);
     });
 
-    it('3.3. CREATE STAFF CUSTOMER - should create a new customer with salon and STAFF role', async () => {
-      const staffCustomerData = {
-        email: generateUniqueEmail(),
-        password: 'TestPassword123!',
-        name: 'Test Staff Customer',
-        phone: '+84987654324',
-        salonUuid: salonUuid,
-        customerRoleName: 'STAFF'
-      };
-
+    it('2. Create Business Owner 2 and Salon 2 (Different salon)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/customers')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send(staffCustomerData)
+        .post('/customers/register')
+        .send({
+          email: generateUniqueEmail(),
+          password: 'password123',
+          name: 'Business Owner 2',
+          phone: generateUniquePhone(),
+          roleName: CUSTOMER_SALON_ROLE.BUSINESS_OWNER
+        })
         .expect(201);
 
-      expect(response.body).toHaveProperty('uuid');
-      expect(response.body.email).toBe(staffCustomerData.email);
-      expect(response.body.name).toBe(staffCustomerData.name);
-      expect(response.body.phone).toBe(staffCustomerData.phone);
-
-      staffCustomerUuid = response.body.uuid;
-      staffCustomerEmail = staffCustomerData.email;
-      createdCustomerUuids.push(staffCustomerUuid);
-    });
-
-    it('3.3.1. GET CUSTOMERS - should have only 1 customer in list', async () => {
-      const response = await request(app.getHttpServer())
-        .get('/customers?page=1&limit=10')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .expect(200);
-
-      expect(response.body).toHaveProperty('data');
-      expect(response.body).toHaveProperty('total');
-      expect(response.body.total).toBe(1);
-      expect(response.body.data).toHaveLength(1);
-      expect(response.body.data[0].uuid).toBe(staffCustomerUuid);
-    });
-
-    it('3.3.2 CREATE MANAGER CUSTOMER - should create a new customer with salon and MANAGER role', async () => {
-      const managerCustomerData = {
-        email: generateUniqueEmail(),
-        password: 'TestPassword123!',
-        name: 'Test Manager Customer',
-        phone: '+84987654323',
-        salonUuid: salonUuid,
-        customerRoleName: 'MANAGER'
-      };
-
-      const response = await request(app.getHttpServer())
-        .post('/customers')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send(managerCustomerData)
-        .expect(201);
-
-      expect(response.body).toHaveProperty('uuid');
-      expect(response.body.email).toBe(managerCustomerData.email);
-      expect(response.body.name).toBe(managerCustomerData.name);
-      expect(response.body.phone).toBe(managerCustomerData.phone);
-
-      managerCustomerUuid = response.body.uuid;
-      managerCustomerEmail = managerCustomerData.email;
-      createdCustomerUuids.push(managerCustomerUuid);
-    });
-
-    it('3.3.3. VERIFY CUSTOMERS COUNT - should have 2 customers (1 staff + 1 manager)', async () => {
-      const response = await request(app.getHttpServer())
-        .get('/customers?page=1&limit=10')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .expect(200);
-        
-      expect(response.body).toHaveProperty('data');
-      expect(response.body).toHaveProperty('total');
-      expect(response.body.total).toBe(2);
-      expect(response.body.data).toHaveLength(2);
-
-      // Verify we have the expected customers
-      const customerUuids = response.body.data.map(customer => customer.uuid);
-      expect(customerUuids).toContain(staffCustomerUuid);
-      expect(customerUuids).toContain(managerCustomerUuid);
-    });
-
-    it('3.4. LOGIN AS MANAGER - should login with manager customer and verify salon access', async () => {
-      // First activate the manager customer for login
-      await customersService.update(managerCustomerUuid, {
-        status: CUSTOMER_STATUS.ACTIVED
-      });
-
-      // Login with manager customer
+      businessOwner2 = response.body.customer;
+      createdCustomerUuids.push(businessOwner2.uuid);
+      
+      await activateCustomer(businessOwner2.uuid);
+      
       const loginResponse = await request(app.getHttpServer())
         .post('/customers/login')
         .send({
-          email: managerCustomerEmail,
-          password: 'TestPassword123!'
+          email: businessOwner2.email,
+          password: 'password123'
         })
         .expect(200);
 
-      const managerAccessToken = loginResponse.body.accessToken;
+      businessOwner2Token = loginResponse.body.accessToken;
 
-      // Get salons as manager customer
-      const salonsResponse = await request(app.getHttpServer())
-        .get('/salons?page=1&limit=10')
-        .set('Authorization', `Bearer ${managerAccessToken}`)
-        .expect(200);
-
-      expect(salonsResponse.body).toHaveProperty('data');
-      expect(salonsResponse.body).toHaveProperty('total');
-      expect(salonsResponse.body.total).toBe(1);
-      expect(salonsResponse.body.data).toHaveLength(1);
-      expect(salonsResponse.body.data[0].uuid).toBe(salonUuid);
-      expect(salonsResponse.body.data[0].name).toBe('Test E2E Salon');
-    });
-
-    it('3.5. LOGIN AS STAFF - should login with staff customer and verify salon access', async () => {
-      // First activate the staff customer for login
-      await customersService.update(staffCustomerUuid, {
-        status: CUSTOMER_STATUS.ACTIVED
-      });
-
-      // Login with staff customer
-      const loginResponse = await request(app.getHttpServer())
-        .post('/customers/login')
+      // Create Salon 2
+      const salonResponse = await request(app.getHttpServer())
+        .post('/salons')
+        .set('Authorization', `Bearer ${businessOwner2Token}`)
         .send({
-          email: staffCustomerEmail,
-          password: 'TestPassword123!'
+          name: 'Salon 2',
+          address: '456 Test Ave',
+          phone: '+84987654322',
+          email: generateUniqueEmail()
         })
-        .expect(200);
-
-      const staffAccessToken = loginResponse.body.accessToken;
-
-      // Get salons as staff customer
-      const salonsResponse = await request(app.getHttpServer())
-        .get('/salons?page=1&limit=10')
-        .set('Authorization', `Bearer ${staffAccessToken}`)
-        .expect(200);
-
-      expect(salonsResponse.body).toHaveProperty('data');
-      expect(salonsResponse.body).toHaveProperty('total');
-      
-      // Staff customer should have access to the salon they belong to
-      expect(salonsResponse.body.total).toBe(1);
-      expect(salonsResponse.body.data).toHaveLength(1);
-      expect(salonsResponse.body.data[0].uuid).toBe(salonUuid);
-      expect(salonsResponse.body.data[0].name).toBe('Test E2E Salon');
-    });
-
-    it('3.6. LOGIN AS UNASSIGNED CUSTOMER - should login with customer who has no salon assignment', async () => {
-      // First activate the unassigned staff customer for login
-      await customersService.update(unassignedStaffCustomerUuid, {
-        status: CUSTOMER_STATUS.ACTIVED
-      });
-
-      // Login with unassigned staff customer
-      const loginResponse = await request(app.getHttpServer())
-        .post('/customers/login')
-        .send({
-          email: unassignedStaffCustomerEmail,
-          password: 'TestPassword123!'
-        })
-        .expect(200);
-
-      const unassignedAccessToken = loginResponse.body.accessToken;
-
-      // Get salons as unassigned customer
-      const salonsResponse = await request(app.getHttpServer())
-        .get('/salons?page=1&limit=10')
-        .set('Authorization', `Bearer ${unassignedAccessToken}`)
-        .expect(200);
-
-      expect(salonsResponse.body).toHaveProperty('data');
-      expect(salonsResponse.body).toHaveProperty('total');
-      
-      // Unassigned customer should have no access to any salons
-      expect(salonsResponse.body.total).toBe(0);
-      expect(salonsResponse.body.data).toHaveLength(0);
-    });
-
-    it('3.7. ASSIGN CUSTOMER TO SALON - should add unassigned customer to salon with STAFF role', async () => {
-      const customerSalonData = {
-        customerUuid: unassignedStaffCustomerUuid,
-        salonUuid: salonUuid,
-        roleName: 'STAFF'
-      };
-
-      const response = await request(app.getHttpServer())
-        .post('/customer-salons')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send(customerSalonData)
         .expect(201);
 
-      expect(response.body).toHaveProperty('uuid');
-      expect(response.body.customerUuid).toBe(unassignedStaffCustomerUuid);
-      expect(response.body.salonUuid).toBe(salonUuid);
-      expect(response.body.roleName).toBe('STAFF');
+      salon2Uuid = salonResponse.body.uuid;
+      createdSalonUuids.push(salon2Uuid);
     });
 
-    it('3.8. VERIFY SALON ACCESS AFTER ASSIGNMENT - should verify previously unassigned customer now has salon access', async () => {
-      // Login with the previously unassigned customer
-      const loginResponse = await request(app.getHttpServer())
-        .post('/customers/login')
+    it('3. Create staff members in Salon 1 with different roles', async () => {
+      // Create Owner
+      const ownerResponse = await request(app.getHttpServer())
+        .post(`/customers/${salon1Uuid}`)
+        .set('Authorization', `Bearer ${businessOwner1Token}`)
         .send({
-          email: unassignedStaffCustomerEmail,
-          password: 'TestPassword123!'
+          email: generateUniqueEmail(),
+          password: 'password123',
+          name: 'Owner 1',
+          phone: generateUniquePhone(),
+          roleName: CUSTOMER_SALON_ROLE.OWNER
         })
-        .expect(200);
+        .expect(201);
 
-      const previouslyUnassignedAccessToken = loginResponse.body.accessToken;
+      salon1Owner = ownerResponse.body;
+      createdCustomerUuids.push(salon1Owner.uuid);
 
-      // Get salons as previously unassigned customer (now assigned)
-      const salonsResponse = await request(app.getHttpServer())
-        .get('/salons?page=1&limit=10')
-        .set('Authorization', `Bearer ${previouslyUnassignedAccessToken}`)
-        .expect(200);
+      // Create Manager
+      const managerResponse = await request(app.getHttpServer())
+        .post(`/customers/${salon1Uuid}`)
+        .set('Authorization', `Bearer ${businessOwner1Token}`)
+        .send({
+          email: generateUniqueEmail(),
+          password: 'password123',
+          name: 'Manager 1',
+          phone: generateUniquePhone(),
+          roleName: CUSTOMER_SALON_ROLE.MANAGER
+        })
+        .expect(201);
 
-      expect(salonsResponse.body).toHaveProperty('data');
-      expect(salonsResponse.body).toHaveProperty('total');
-      
-      // Previously unassigned customer should now have access to the salon
-      expect(salonsResponse.body.total).toBe(1);
-      expect(salonsResponse.body.data).toHaveLength(1);
-      expect(salonsResponse.body.data[0].uuid).toBe(salonUuid);
-      expect(salonsResponse.body.data[0].name).toBe('Test E2E Salon');
+      salon1Manager = managerResponse.body;
+      createdCustomerUuids.push(salon1Manager.uuid);
 
+      // Create Front Desk
+      const frontDeskResponse = await request(app.getHttpServer())
+        .post(`/customers/${salon1Uuid}`)
+        .set('Authorization', `Bearer ${businessOwner1Token}`)
+        .send({
+          email: generateUniqueEmail(),
+          password: 'password123',
+          name: 'Front Desk 1',
+          phone: generateUniquePhone(),
+          roleName: CUSTOMER_SALON_ROLE.FRONT_DESK
+        })
+        .expect(201);
+
+      salon1FrontDesk = frontDeskResponse.body;
+      createdCustomerUuids.push(salon1FrontDesk.uuid);
+
+      // Create Staff
+      const staffResponse = await request(app.getHttpServer())
+        .post(`/customers/${salon1Uuid}`)
+        .set('Authorization', `Bearer ${businessOwner1Token}`)
+        .send({
+          email: generateUniqueEmail(),
+          password: 'password123',
+          name: 'Staff 1',
+          phone: generateUniquePhone(),
+          roleName: CUSTOMER_SALON_ROLE.STAFF
+        })
+        .expect(201);
+
+      salon1Staff = staffResponse.body;
+      createdCustomerUuids.push(salon1Staff.uuid);
     });
 
-    it('3.9. VERIFY SYSTEM PREVENTS MULTIPLE ROLES - should prevent adding multiple roles to same customer-salon pair', async () => {
-      // First verify the customer currently has STAFF role
-      const getRelationshipResponse = await request(app.getHttpServer())
-        .get(`/customer-salons/${salonUuid}/${unassignedStaffCustomerUuid}`)
-        .set('Authorization', `Bearer ${accessToken}`)
+    it('4. Login all staff members', async () => {
+      // Activate all staff members
+      await activateCustomer(salon1Owner.uuid);
+      await activateCustomer(salon1Manager.uuid);
+      await activateCustomer(salon1FrontDesk.uuid);
+      await activateCustomer(salon1Staff.uuid);
+
+      // Login as Owner
+      const ownerLogin = await request(app.getHttpServer())
+        .post('/customers/login')
+        .send({ email: salon1Owner.email, password: 'password123' })
         .expect(200);
+      owner1Token = ownerLogin.body.accessToken;
 
-      expect(getRelationshipResponse.body).toHaveProperty('uuid');
-      expect(getRelationshipResponse.body.roleName).toBe('STAFF');
-      
-      // Try to add MANAGER role using POST (should fail with 409 Conflict)
-      const customerSalonData = {
-        customerUuid: unassignedStaffCustomerUuid,
-        salonUuid: salonUuid,
-        roleName: 'MANAGER'
-      };
-
-      const response = await request(app.getHttpServer())
-        .post('/customer-salons')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send(customerSalonData)
-        .expect(409);
-
-      expect(response.body.message).toBe('Customer-Salon relationship already exists');
-      expect(response.body.statusCode).toBe(409);
-
-      // Verify the original STAFF role is still there
-      const verifyResponse = await request(app.getHttpServer())
-        .get(`/customer-salons/${salonUuid}/${unassignedStaffCustomerUuid}`)
-        .set('Authorization', `Bearer ${accessToken}`)
+      // Login as Manager
+      const managerLogin = await request(app.getHttpServer())
+        .post('/customers/login')
+        .send({ email: salon1Manager.email, password: 'password123' })
         .expect(200);
-      
-      expect(verifyResponse.body.roleName).toBe('STAFF');
-    });
+      manager1Token = managerLogin.body.accessToken;
 
-    it('3.9.1. UPDATE STAFF TO MANAGER ROLE - should update staff customer role to manager', async () => {
-      // First verify the customer currently has STAFF role
-      const getCurrentRelationshipResponse = await request(app.getHttpServer())
-        .get(`/customer-salons/${salonUuid}/${unassignedStaffCustomerUuid}`)
-        .set('Authorization', `Bearer ${accessToken}`)
+      // Login as Front Desk
+      const frontDeskLogin = await request(app.getHttpServer())
+        .post('/customers/login')
+        .send({ email: salon1FrontDesk.email, password: 'password123' })
         .expect(200);
+      frontDesk1Token = frontDeskLogin.body.accessToken;
 
-      expect(getCurrentRelationshipResponse.body.roleName).toBe('STAFF');
-
-      // Update the role from STAFF to MANAGER using PATCH endpoint
-      const updateData = {
-        roleName: 'MANAGER'
-      };
-
-      const updateResponse = await request(app.getHttpServer())
-        .patch(`/customer-salons/${salonUuid}/${unassignedStaffCustomerUuid}`)
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send(updateData)
+      // Login as Staff
+      const staffLogin = await request(app.getHttpServer())
+        .post('/customers/login')
+        .send({ email: salon1Staff.email, password: 'password123' })
         .expect(200);
-
-      expect(updateResponse.body).toHaveProperty('uuid');
-      expect(updateResponse.body.customerUuid).toBe(unassignedStaffCustomerUuid);
-      expect(updateResponse.body.salonUuid).toBe(salonUuid);
-      expect(updateResponse.body.roleName).toBe('MANAGER');
-
-      // Verify the role has been updated
-      const verifyUpdateResponse = await request(app.getHttpServer())
-        .get(`/customer-salons/${salonUuid}/${unassignedStaffCustomerUuid}`)
-        .set('Authorization', `Bearer ${accessToken}`)
-        .expect(200);
-      
-      expect(verifyUpdateResponse.body.roleName).toBe('MANAGER');
-    });
-
-    it('3.10. VERIFY CUSTOMER ROLES - should verify each customer has one role', async () => {
-      const response = await request(app.getHttpServer())
-        .get('/customers?page=1&limit=20')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .expect(200);
-
-      expect(response.body).toHaveProperty('data');
-      expect(response.body).toHaveProperty('total');
-      expect(response.body.total).toBe(3);
-      expect(response.body.data).toHaveLength(3);
-
-      // Find customers and verify roles
-      const customers = response.body.data;
-      const staffCustomer = customers.find(c => c.uuid === staffCustomerUuid);
-      const managerCustomer = customers.find(c => c.uuid === managerCustomerUuid);
-      const testCustomer = customers.find(c => c.uuid === unassignedStaffCustomerUuid);
-
-      expect(staffCustomer).toBeDefined();
-      expect(staffCustomer.role).toBe('STAFF');
-
-      expect(managerCustomer).toBeDefined();
-      expect(managerCustomer.role).toBe('MANAGER');
-
-      expect(testCustomer).toBeDefined();
-      expect(testCustomer.role).toBe('MANAGER');
-    });
-
-    it('4. DELETE - should delete the customer', async () => {
-      await request(app.getHttpServer())
-        .delete(`/customers/${testCustomerUuid}`)
-        .set('Authorization', `Bearer ${accessToken}`)
-        .expect(200);
-
-      // Remove from tracking array since it's already deleted
-      const index = createdCustomerUuids.indexOf(testCustomerUuid);
-      if (index > -1) {
-        createdCustomerUuids.splice(index, 1);
-      }
-      testCustomerUuid = null;
+      staff1Token = staffLogin.body.accessToken;
     });
   });
 
-  describe('Role-based customer and salon permissions', () => {
-    let businessOwner = {
-      email: generateUniqueEmail(),
-      password: 'Owner123!',
-      name: 'Business Owner',
-      phone: '+84999999999'
-    };
-    let owner = {
-      email: generateUniqueEmail(),
-      password: 'Owner123!',
-      name: 'Owner',
-      phone: '+84999999998'
-    };
-    let manager = {
-      email: generateUniqueEmail(),
-      password: 'Manager123!',
-      name: 'Manager',
-      phone: '+84999999997'
-    };
-    let boToken: string;
-    let ownerToken: string;
-    let managerToken: string;
-    let salonId: string;
-    let boCustomerId: string;
-    let ownerCustomerId: string;
-    let managerCustomerId: string;
-    let unassignedCustomerId: string;
+  describe('READ - List Customers with Role-Based Filtering', () => {
+    it('Business Owner can see all customers except other Business Owners', async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/customers/${salon1Uuid}`)
+        .set('Authorization', `Bearer ${businessOwner1Token}`)
+        .query({ page: 1, limit: 100 })
+        .expect(200);
 
-    it('A.1 REGISTER - should register BUSINESS_OWNER', async () => {
-      const res = await request(app.getHttpServer())
-        .post('/customers/register')
-        .send(businessOwner)
-        .expect(201);
-      expect(res.body).toHaveProperty('customer');
-      boCustomerId = res.body.customer.uuid;
-      createdCustomerUuids.push(boCustomerId);
+      expect(response.body.data).toBeDefined();
+      expect(Array.isArray(response.body.data)).toBe(true);
+
+      // Should see Owner, Manager, Front Desk, Staff but not Business Owner
+      const customerUuids = response.body.data.map((c: any) => c.uuid);
+      expect(customerUuids).toContain(salon1Owner.uuid);
+      expect(customerUuids).toContain(salon1Manager.uuid);
+      expect(customerUuids).toContain(salon1FrontDesk.uuid);
+      expect(customerUuids).toContain(salon1Staff.uuid);
+
+      // Should NOT see other business owners
+      expect(customerUuids).not.toContain(businessOwner2.uuid);
     });
-    it('A.2 LOGIN - BUSINESS_OWNER', async () => {
-      await customersService.update(boCustomerId, { status: CUSTOMER_STATUS.ACTIVED });
-      const res = await request(app.getHttpServer())
-        .post('/customers/login')
-        .send({ email: businessOwner.email, password: businessOwner.password })
+
+    it('Owner can see all roles except Business Owner and Owner', async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/customers/${salon1Uuid}`)
+        .set('Authorization', `Bearer ${owner1Token}`)
+        .query({ page: 1, limit: 100 })
         .expect(200);
-      boToken = res.body.accessToken;
+
+      const customerUuids = response.body.data.map((c: any) => c.uuid);
+      
+      // Should see Manager, Front Desk, Staff
+      expect(customerUuids).toContain(salon1Manager.uuid);
+      expect(customerUuids).toContain(salon1FrontDesk.uuid);
+      expect(customerUuids).toContain(salon1Staff.uuid);
+
+      // Should NOT see Business Owner or other Owners
+      expect(customerUuids).not.toContain(businessOwner1.uuid);
+      expect(customerUuids).not.toContain(salon1Owner.uuid);
     });
-    it('A.3 CREATE SALON - BUSINESS_OWNER', async () => {
-      const salonData = {
-        name: 'BO Salon',
-        address: 'BO Address',
-        phone: '+84123456780',
-        email: generateUniqueEmail(),
-        description: 'BO Salon Desc'
-      };
-      const res = await request(app.getHttpServer())
-        .post('/salons')
-        .set('Authorization', `Bearer ${boToken}`)
-        .send(salonData)
-        .expect(201);
-      salonId = res.body.uuid;
-    });
-    it('A.4 CREATE OWNER - BUSINESS_OWNER creates OWNER', async () => {
-      const res = await request(app.getHttpServer())
-        .post('/customers')
-        .set('Authorization', `Bearer ${boToken}`)
-        .send({ ...owner, salonUuid: salonId, customerRoleName: 'OWNER' })
-        .expect(201);
-      ownerCustomerId = res.body.uuid;
-      createdCustomerUuids.push(ownerCustomerId);
-    });
-    it('A.5 LOGIN - OWNER', async () => {
-      await customersService.update(ownerCustomerId, { status: CUSTOMER_STATUS.ACTIVED });
-      const res = await request(app.getHttpServer())
-        .post('/customers/login')
-        .send({ email: owner.email, password: owner.password })
+
+    it('Manager can only see Front Desk and Staff', async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/customers/${salon1Uuid}`)
+        .set('Authorization', `Bearer ${manager1Token}`)
+        .query({ page: 1, limit: 100 })
         .expect(200);
-      ownerToken = res.body.accessToken;
+
+      const customerUuids = response.body.data.map((c: any) => c.uuid);
+      
+      // Should only see Front Desk and Staff
+      expect(customerUuids).toContain(salon1FrontDesk.uuid);
+      expect(customerUuids).toContain(salon1Staff.uuid);
+
+      // Should NOT see Business Owner, Owner, or Manager
+      expect(customerUuids).not.toContain(businessOwner1.uuid);
+      expect(customerUuids).not.toContain(salon1Owner.uuid);
+      expect(customerUuids).not.toContain(salon1Manager.uuid);
     });
-    it('A.6 CREATE MANAGER - OWNER creates MANAGER', async () => {
-      const res = await request(app.getHttpServer())
-        .post('/customers')
-        .set('Authorization', `Bearer ${ownerToken}`)
-        .send({ ...manager, salonUuid: salonId, customerRoleName: 'MANAGER' })
-        .expect(201);
-      managerCustomerId = res.body.uuid;
-      createdCustomerUuids.push(managerCustomerId);
-    });
-    it('A.7 LOGIN - MANAGER', async () => {
-      await customersService.update(managerCustomerId, { status: CUSTOMER_STATUS.ACTIVED });
-      const res = await request(app.getHttpServer())
-        .post('/customers/login')
-        .send({ email: manager.email, password: manager.password })
-        .expect(200);
-      managerToken = res.body.accessToken;
-    });
-    it('A.8 CRUD - BUSINESS_OWNER can CRUD customers', async () => {
-      // Create
-      const newCustomer = {
-        email: generateUniqueEmail(),
-        password: 'Test123!',
-        name: 'BO CRUD',
-        phone: '+84999999995',
-        salonUuid: salonId,
-        customerRoleName: 'STAFF'
-      };
-      const createRes = await request(app.getHttpServer())
-        .post('/customers')
-        .set('Authorization', `Bearer ${boToken}`)
-        .send(newCustomer)
-        .expect(201);
-      const customerId = createRes.body.uuid;
-      // Read
+
+    it('Front Desk and Staff cannot list customers', async () => {
       await request(app.getHttpServer())
-        .get(`/customers/${customerId}`)
-        .set('Authorization', `Bearer ${boToken}`)
-        .expect(200);
-      // Update
+        .get(`/customers/${salon1Uuid}`)
+        .set('Authorization', `Bearer ${frontDesk1Token}`)
+        .expect(403);
+
       await request(app.getHttpServer())
-        .patch(`/customers/${customerId}`)
-        .set('Authorization', `Bearer ${boToken}`)
-        .send({ name: 'BO Updated' })
-        .expect(200);
-      // Delete
-      await request(app.getHttpServer())
-        .delete(`/customers/${customerId}`)
-        .set('Authorization', `Bearer ${boToken}`)
-        .expect(200);
+        .get(`/customers/${salon1Uuid}`)
+        .set('Authorization', `Bearer ${staff1Token}`)
+        .expect(403);
     });
-    it('A.9 CRUD - OWNER can CRUD customers', async () => {
-      // Create
-      const newCustomer = {
-        email: generateUniqueEmail(),
-        password: 'Test123!',
-        name: 'Owner CRUD',
-        phone: '+84999999994',
-        salonUuid: salonId,
-        customerRoleName: 'STAFF'
-      };
-      const createRes = await request(app.getHttpServer())
-        .post('/customers')
-        .set('Authorization', `Bearer ${ownerToken}`)
-        .send(newCustomer)
-        .expect(201);
-      const customerId = createRes.body.uuid;
-      // Read
-      await request(app.getHttpServer())
-        .get(`/customers/${customerId}`)
-        .set('Authorization', `Bearer ${ownerToken}`)
-        .expect(200);
-      // Update
-      await request(app.getHttpServer())
-        .patch(`/customers/${customerId}`)
-        .set('Authorization', `Bearer ${ownerToken}`)
-        .send({ name: 'Owner Updated' })
-        .expect(200);
-      // Delete
-      await request(app.getHttpServer())
-        .delete(`/customers/${customerId}`)
-        .set('Authorization', `Bearer ${ownerToken}`)
-        .expect(200);
-    });
-    it('A.9.1 SET ROLE - OWNER sets role for unassigned customer', async () => {
-      // Create a customer without a role or salon
-      const unassignedCustomer = {
-        email: generateUniqueEmail(),
-        password: 'Unassigned123!',
-        name: 'Unassigned',
-        phone: '+84999999991'
-      };
-      const createRes = await request(app.getHttpServer())
-        .post('/customers')
-        .set('Authorization', `Bearer ${ownerToken}`)
-        .send(unassignedCustomer)
-        .expect(201);
-      unassignedCustomerId = createRes.body.uuid;
-      // Assign role and salon to the unassigned customer
-      const assignRes = await request(app.getHttpServer())
-        .patch(`/customers/${unassignedCustomerId}`)
-        .set('Authorization', `Bearer ${ownerToken}`)
-        .send({ salonUuid: salonId, customerRoleName: 'STAFF' })
-        .expect(200);
-      expect(assignRes.body.uuid).toBe(unassignedCustomerId);
-      // Clean up: delete the unassigned customer
-      await request(app.getHttpServer())
-        .delete(`/customers/${unassignedCustomerId}`)
-        .set('Authorization', `Bearer ${ownerToken}`)
-        .expect(200);
+
+    it('Business Owner from Salon 2 cannot see Salon 1 customers', async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/customers/${salon1Uuid}`)
+        .set('Authorization', `Bearer ${businessOwner2Token}`)
+        .query({ page: 1, limit: 100 })
+        .expect(403);
     });
   });
-  
+
+  describe('READ - Get Single Customer with Role-Based Access', () => {
+    it('Business Owner can get details of their salon customers', async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/customers/${salon1Uuid}/${salon1Staff.uuid}`)
+        .set('Authorization', `Bearer ${businessOwner1Token}`)
+        .expect(200);
+
+      expect(response.body.uuid).toBe(salon1Staff.uuid);
+      expect(response.body.name).toBe(salon1Staff.name);
+    });
+
+    it('Owner can get details of Manager, Front Desk, Staff', async () => {
+      await request(app.getHttpServer())
+        .get(`/customers/${salon1Uuid}/${salon1Manager.uuid}`)
+        .set('Authorization', `Bearer ${owner1Token}`)
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .get(`/customers/${salon1Uuid}/${salon1FrontDesk.uuid}`)
+        .set('Authorization', `Bearer ${owner1Token}`)
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .get(`/customers/${salon1Uuid}/${salon1Staff.uuid}`)
+        .set('Authorization', `Bearer ${owner1Token}`)
+        .expect(200);
+    });
+
+    it('Manager can get details of Front Desk and Staff only', async () => {
+      await request(app.getHttpServer())
+        .get(`/customers/${salon1Uuid}/${salon1FrontDesk.uuid}`)
+        .set('Authorization', `Bearer ${manager1Token}`)
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .get(`/customers/${salon1Uuid}/${salon1Staff.uuid}`)
+        .set('Authorization', `Bearer ${manager1Token}`)
+        .expect(200);
+
+      // Cannot access Owner
+      await request(app.getHttpServer())
+        .get(`/customers/${salon1Uuid}/${salon1Owner.uuid}`)
+        .set('Authorization', `Bearer ${manager1Token}`)
+        .expect(403);
+    });
+
+    it('Business Owner from different salon cannot access customers', async () => {
+      await request(app.getHttpServer())
+        .get(`/customers/${salon1Uuid}/${salon1Staff.uuid}`)
+        .set('Authorization', `Bearer ${businessOwner2Token}`)
+        .expect(403);
+    });
+
+    it('Staff cannot get customer details', async () => {
+      await request(app.getHttpServer())
+        .get(`/customers/${salon1Uuid}/${salon1Manager.uuid}`)
+        .set('Authorization', `Bearer ${staff1Token}`)
+        .expect(403);
+    });
+  });
+
+  describe('CREATE - Add Customers with Role-Based Permissions', () => {
+    let newStaffUuid: string;
+
+    it('Business Owner can create customers with any role except Business Owner', async () => {
+      const response = await request(app.getHttpServer())
+        .post(`/customers/${salon1Uuid}`)
+        .set('Authorization', `Bearer ${businessOwner1Token}`)
+        .send({
+          email: generateUniqueEmail(),
+          password: 'password123',
+          name: 'New Staff by BO',
+          phone: generateUniquePhone(),
+          roleName: CUSTOMER_SALON_ROLE.STAFF
+        })
+        .expect(201);
+
+      newStaffUuid = response.body.uuid;
+      createdCustomerUuids.push(newStaffUuid);
+      expect(response.body.name).toBe('New Staff by BO');
+    });
+
+    it('Owner can create Manager, Front Desk, Staff', async () => {
+      const response = await request(app.getHttpServer())
+        .post(`/customers/${salon1Uuid}`)
+        .set('Authorization', `Bearer ${owner1Token}`)
+        .send({
+          email: generateUniqueEmail(),
+          password: 'password123',
+          name: 'New Staff by Owner',
+          phone: generateUniquePhone(),
+          roleName: CUSTOMER_SALON_ROLE.STAFF
+        })
+        .expect(201);
+
+      createdCustomerUuids.push(response.body.uuid);
+      expect(response.body.name).toBe('New Staff by Owner');
+    });
+
+    it('Owner cannot create Business Owner or Owner', async () => {
+      await request(app.getHttpServer())
+        .post(`/customers/${salon1Uuid}`)
+        .set('Authorization', `Bearer ${owner1Token}`)
+        .send({
+          email: generateUniqueEmail(),
+          password: 'password123',
+          name: 'Should Fail',
+          phone: generateUniquePhone(),
+          roleName: CUSTOMER_SALON_ROLE.OWNER
+        })
+        .expect(403);
+    });
+
+    it('Manager cannot create customers', async () => {
+      await request(app.getHttpServer())
+        .post(`/customers/${salon1Uuid}`)
+        .set('Authorization', `Bearer ${manager1Token}`)
+        .send({
+          email: generateUniqueEmail(),
+          password: 'password123',
+          name: 'Should Fail',
+          phone: generateUniquePhone(),
+          roleName: CUSTOMER_SALON_ROLE.STAFF
+        })
+        .expect(403);
+    });
+
+    it('Business Owner from different salon cannot create in Salon 1', async () => {
+      await request(app.getHttpServer())
+        .post(`/customers/${salon1Uuid}`)
+        .set('Authorization', `Bearer ${businessOwner2Token}`)
+        .send({
+          email: generateUniqueEmail(),
+          password: 'password123',
+          name: 'Should Fail',
+          phone: generateUniquePhone(),
+          roleName: CUSTOMER_SALON_ROLE.STAFF
+        })
+        .expect(403);
+    });
+  });
+
+  describe('UPDATE - Modify Customers with Role-Based Permissions', () => {
+    it('Business Owner can update their salon customers', async () => {
+      const response = await request(app.getHttpServer())
+        .patch(`/customers/${salon1Uuid}/${salon1Staff.uuid}`)
+        .set('Authorization', `Bearer ${businessOwner1Token}`)
+        .send({ name: 'Updated by Business Owner' })
+        .expect(200);
+
+      expect(response.body.name).toBe('Updated by Business Owner');
+    });
+
+    it('Owner can update Manager, Front Desk, Staff', async () => {
+      const response = await request(app.getHttpServer())
+        .patch(`/customers/${salon1Uuid}/${salon1Manager.uuid}`)
+        .set('Authorization', `Bearer ${owner1Token}`)
+        .send({ name: 'Updated Manager by Owner' })
+        .expect(200);
+
+      expect(response.body.name).toBe('Updated Manager by Owner');
+    });
+
+    it('Manager can update Front Desk and Staff', async () => {
+      const response = await request(app.getHttpServer())
+        .patch(`/customers/${salon1Uuid}/${salon1Staff.uuid}`)
+        .set('Authorization', `Bearer ${manager1Token}`)
+        .send({ name: 'Updated Staff by Manager' })
+        .expect(200);
+
+      expect(response.body.name).toBe('Updated Staff by Manager');
+    });
+
+    it('Manager cannot update Owner', async () => {
+      await request(app.getHttpServer())
+        .patch(`/customers/${salon1Uuid}/${salon1Owner.uuid}`)
+        .set('Authorization', `Bearer ${manager1Token}`)
+        .send({ name: 'Should Fail' })
+        .expect(403);
+    });
+
+    it('Business Owner from different salon cannot update', async () => {
+      await request(app.getHttpServer())
+        .patch(`/customers/${salon1Uuid}/${salon1Staff.uuid}`)
+        .set('Authorization', `Bearer ${businessOwner2Token}`)
+        .send({ name: 'Should Fail' })
+        .expect(403);
+    });
+
+    it('Staff cannot update customers', async () => {
+      await request(app.getHttpServer())
+        .patch(`/customers/${salon1Uuid}/${salon1FrontDesk.uuid}`)
+        .set('Authorization', `Bearer ${staff1Token}`)
+        .send({ name: 'Should Fail' })
+        .expect(403);
+    });
+  });
+
+  describe('DELETE - Remove Customers with Role-Based Permissions', () => {
+    let customerToDelete: any;
+
+    beforeEach(async () => {
+      // Create a customer to delete in each test
+      const response = await request(app.getHttpServer())
+        .post(`/customers/${salon1Uuid}`)
+        .set('Authorization', `Bearer ${businessOwner1Token}`)
+        .send({
+          email: generateUniqueEmail(),
+          password: 'password123',
+          name: 'To Be Deleted',
+          phone: generateUniquePhone(),
+          roleName: CUSTOMER_SALON_ROLE.STAFF
+        })
+        .expect(201);
+
+      customerToDelete = response.body;
+      createdCustomerUuids.push(customerToDelete.uuid);
+    });
+
+    it('Business Owner can delete their salon customers', async () => {
+      await request(app.getHttpServer())
+        .delete(`/customers/${salon1Uuid}/${customerToDelete.uuid}`)
+        .set('Authorization', `Bearer ${businessOwner1Token}`)
+        .expect(200);
+
+      // Remove from cleanup array since already deleted
+      const index = createdCustomerUuids.indexOf(customerToDelete.uuid);
+      if (index > -1) createdCustomerUuids.splice(index, 1);
+    });
+
+    it('Owner can delete Manager, Front Desk, Staff', async () => {
+      await request(app.getHttpServer())
+        .delete(`/customers/${salon1Uuid}/${customerToDelete.uuid}`)
+        .set('Authorization', `Bearer ${owner1Token}`)
+        .expect(200);
+
+      const index = createdCustomerUuids.indexOf(customerToDelete.uuid);
+      if (index > -1) createdCustomerUuids.splice(index, 1);
+    });
+
+    it('Manager can delete Front Desk and Staff', async () => {
+      await request(app.getHttpServer())
+        .delete(`/customers/${salon1Uuid}/${customerToDelete.uuid}`)
+        .set('Authorization', `Bearer ${manager1Token}`)
+        .expect(200);
+
+      const index = createdCustomerUuids.indexOf(customerToDelete.uuid);
+      if (index > -1) createdCustomerUuids.splice(index, 1);
+    });
+
+    it('Manager cannot delete Owner', async () => {
+      await request(app.getHttpServer())
+        .delete(`/customers/${salon1Uuid}/${salon1Owner.uuid}`)
+        .set('Authorization', `Bearer ${manager1Token}`)
+        .expect(403);
+    });
+
+    it('Business Owner from different salon cannot delete', async () => {
+      await request(app.getHttpServer())
+        .delete(`/customers/${salon1Uuid}/${customerToDelete.uuid}`)
+        .set('Authorization', `Bearer ${businessOwner2Token}`)
+        .send({ name: 'Should Fail' })
+        .expect(403);
+    });
+
+    it('Staff cannot delete customers', async () => {
+      await request(app.getHttpServer())
+        .delete(`/customers/${salon1Uuid}/${customerToDelete.uuid}`)
+        .set('Authorization', `Bearer ${staff1Token}`)
+        .expect(403);
+    });
+
+    it('Cannot delete non-existent customer', async () => {
+      const fakeUuid = uuid();
+      await request(app.getHttpServer())
+        .delete(`/customers/${salon1Uuid}/${fakeUuid}`)
+        .set('Authorization', `Bearer ${businessOwner1Token}`)
+        .expect(404);
+    });
+  });
+
+  describe('Cross-Salon Access Prevention', () => {
+    it('Owner from Salon 1 cannot access Salon 2 customers', async () => {
+      // Create a customer in Salon 2
+      const salon2Customer = await request(app.getHttpServer())
+        .post(`/customers/${salon2Uuid}`)
+        .set('Authorization', `Bearer ${businessOwner2Token}`)
+        .send({
+          email: generateUniqueEmail(),
+          password: 'password123',
+          name: 'Salon 2 Customer',
+          phone: generateUniquePhone(),
+          roleName: CUSTOMER_SALON_ROLE.STAFF
+        })
+        .expect(201);
+
+      createdCustomerUuids.push(salon2Customer.body.uuid);
+
+      // Try to access from Salon 1 Owner - should fail
+      await request(app.getHttpServer())
+        .get(`/customers/${salon2Uuid}/${salon2Customer.body.uuid}`)
+        .set('Authorization', `Bearer ${owner1Token}`)
+        .expect(403);
+
+      // Try to update from Salon 1 Owner - should fail
+      await request(app.getHttpServer())
+        .patch(`/customers/${salon2Uuid}/${salon2Customer.body.uuid}`)
+        .set('Authorization', `Bearer ${owner1Token}`)
+        .send({ name: 'Should Fail' })
+        .expect(403);
+
+      // Try to delete from Salon 1 Owner - should fail
+      await request(app.getHttpServer())
+        .delete(`/customers/${salon2Uuid}/${salon2Customer.body.uuid}`)
+        .set('Authorization', `Bearer ${owner1Token}`)
+        .expect(403);
+    });
+
+    it('Manager from Salon 1 cannot list or access Salon 2 customers', async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/customers/${salon1Uuid}`)
+        .set('Authorization', `Bearer ${manager1Token}`)
+        .query({ page: 1, limit: 100 })
+        .expect(200);
+
+      // Manager should only see FRONT_DESK and STAFF roles
+      // Check that all returned customers have the correct roles
+      const allCustomersHaveCorrectRoles = response.body.data.every((customer: any) => {
+        return ['FRONT_DESK', 'STAFF'].includes(customer.roleName);
+      });
+
+      expect(allCustomersHaveCorrectRoles).toBe(true);
+      
+      // Verify we can see the specific Salon 1 customers
+      const customerUuids = response.body.data.map((c: any) => c.uuid);
+      expect(customerUuids).toContain(salon1FrontDesk.uuid);
+      expect(customerUuids).toContain(salon1Staff.uuid);
+      
+      // Should NOT contain any higher roles
+      expect(customerUuids).not.toContain(salon1Owner.uuid);
+      expect(customerUuids).not.toContain(salon1Manager.uuid);
+      expect(customerUuids).not.toContain(businessOwner1.uuid);
+    });
+  });
 });

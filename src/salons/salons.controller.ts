@@ -37,7 +37,41 @@ import { Salon, SALON_STATUS } from './entities/salon.entity';
 export class SalonsController {
   constructor(
     private readonly salonsService: SalonsService,
+    private readonly customerSalonsService: CustomerSalonsService,
   ) {}
+
+  @Post()
+  @OwnerOnly()
+  @ApiOperation({ summary: 'Create a new salon and assign customer as owner (Owner only)' })
+  @ApiResponse({
+    status: 201,
+    description: 'Salon created successfully and customer assigned as owner',
+    type: Salon,
+  })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - Invalid JWT token' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Only owners can create salons' })
+  @ApiResponse({ status: 409, description: 'Customer-salon relationship already exists' })
+  async create(@Body() createSalonDto: CreateSalonDto, @CurrentCustomer() currentCustomer: any): Promise<Salon> {
+    // Create the salon
+    const salon = await this.salonsService.create(createSalonDto);
+    
+    try {
+      // Automatically create customer-salon relationship with BUSINESS_OWNER role
+      await this.customerSalonsService.create({
+        customerUuid: currentCustomer.customer.uuid,
+        salonUuid: salon.uuid,
+        roleName: CUSTOMER_SALON_ROLE.BUSINESS_OWNER,
+      });
+    } catch (error) {
+      // If relationship creation fails, we should clean up the salon
+      // This is unlikely to happen but good for consistency
+      await this.salonsService.remove(salon.uuid);
+      throw error;
+    }
+    
+    return salon;
+  }
 
   @Get()
   @ApiOperation({ summary: 'Get salons belonging to logged in customer with pagination' })
