@@ -37,6 +37,8 @@ seed-permissions:
 	docker-compose exec app npm run seed:permissions
 seed-users:
 	docker-compose exec app npm run seed:users
+seed-plans:
+	docker-compose exec app npm run seed:plans
 migration-run:
 	docker-compose exec app npm run migration:run
 migration-revert:
