@@ -630,10 +630,10 @@ export class PaymentsService {
         throw new NotFoundException('Customer not found');
       }
 
-      const existingSubscription = await this.subscriptionService.findCurrentByCustomer(customer.uuid);
-      if (existingSubscription) {
-        throw new ConflictException('You already have an active subscription');
-      }
+      // Previous logic enforced a single active subscription per customer.
+      // Updated: Allow multiple subscriptions (each ties a plan to a salon).
+      // If business rules later require limiting per-salon, enforce it in SubscriptionService.
+      // No conflict check here; we just create a new checkout session.
 
       // Ensure Stripe plan and price exist
       let priceId = plan.stripePriceId;

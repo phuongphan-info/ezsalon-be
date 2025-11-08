@@ -402,8 +402,8 @@ describe('Payments / Stripe E2E', () => {
       }
     });
 
-    it('blocks new checkout sessions when customer already subscribed', async () => {
-      const response = await request(httpServer)
+    it('allows creating another checkout session even if already subscribed', async () => {
+      const secondSession = await request(httpServer)
         .post('/payments/checkout')
         .set('Authorization', `Bearer ${primaryCustomer.token}`)
         .send({
@@ -411,9 +411,10 @@ describe('Payments / Stripe E2E', () => {
           successUrl: 'http://localhost:3000/success',
           cancelUrl: 'http://localhost:3000/cancel',
         })
-        .expect(409);
+        .expect(201);
 
-      expect(response.body.message).toContain('active subscription');
+      expect(secondSession.body.sessionId).toBeDefined();
+      expect(secondSession.body.url).toContain('https://');
     });
 
     it('keeps subscription in trial status when trial_will_end event arrives', async () => {
