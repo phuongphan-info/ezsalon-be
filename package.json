@@ -28,7 +28,7 @@
     "seed:all": "ts-node src/database/seed-all.ts",
     "seed:permissions": "ts-node src/database/seed-permissions.ts",
     "seed:users": "ts-node src/database/seed-users.ts",
-    "seed:plans": "ts-node src/database/seed-plans.ts",
+  "seed:plans": "ts-node -r tsconfig-paths/register src/database/seed-plans.ts",
     "migration:run": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:run -d src/database/data-source.ts",
     "migration:revert": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:revert -d src/database/data-source.ts",
     "migration:generate": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:generate -d src/database/data-source.ts",

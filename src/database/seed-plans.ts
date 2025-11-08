@@ -25,31 +25,6 @@ export async function seedPlansOnly(
       console.log('⚠️  Admin user not found. Plans will be created without a creator.');
     }
 
-    // Clear existing plans (handle foreign key constraints)
-    console.log('🗑️  Clearing existing plans...');
-    
-    // First, check if there are any existing plans
-    const existingPlans = await planRepository.find();
-    
-    if (existingPlans.length > 0) {
-      console.log(`   Found ${existingPlans.length} existing plans to remove...`);
-      
-      // Check if there are any subscriptions referencing these plans
-      const subscriptionRepository = dataSource.getRepository('Subscription');
-      const subscriptionsCount = await subscriptionRepository.count();
-      
-      if (subscriptionsCount > 0) {
-        console.log('⚠️  Found existing subscriptions. Clearing subscriptions first...');
-        await subscriptionRepository.clear();
-      }
-      
-      // Now we can safely clear plans
-      await planRepository.clear();
-      console.log('   ✅ Plans cleared successfully');
-    } else {
-      console.log('   ℹ️  No existing plans found');
-    }
-
     const plansToSeed = [
       {
         uuid: '3fe8e4b1-d58d-4349-8c95-51697526466a',
@@ -121,10 +96,22 @@ export async function seedPlansOnly(
     const createdPlans: Plan[] = [];
 
     for (const planData of plansToSeed) {
-      const plan = planRepository.create(planData);
-      const savedPlan = await planRepository.save(plan);
-      createdPlans.push(savedPlan);
-      console.log(`   ✅ Created: ${savedPlan.name} - $${(savedPlan.priceCents / 100).toFixed(2)}/${savedPlan.billingInterval}`);
+      // Check if plan with this stripePlanId and stripePriceId already exists
+      const existingPlan = await planRepository.findOne({
+        where: {
+          stripePlanId: planData.stripePlanId,
+          stripePriceId: planData.stripePriceId,
+        },
+      });
+
+      if (existingPlan) {
+        console.log(`   ⏭️  Skipped: ${planData.name} - Plan already exists (${planData.stripePlanId}/${planData.stripePriceId})`);
+      } else {
+        const plan = planRepository.create(planData);
+        const savedPlan = await planRepository.save(plan);
+        createdPlans.push(savedPlan);
+        console.log(`   ✅ Created: ${savedPlan.name} - $${(savedPlan.priceCents / 100).toFixed(2)}/${savedPlan.billingInterval}`);
+      }
     }
 
     console.log(`\n🎉 Successfully created ${createdPlans.length} plans!`);
