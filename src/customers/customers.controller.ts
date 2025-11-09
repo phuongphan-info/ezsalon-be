@@ -41,7 +41,7 @@ import { Customer, CUSTOMER_STATUS } from './entities/customer.entity';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { CUSTOMER_SALON_ROLE } from './entities/customer-salon.entity';
 import { plainToInstance } from 'class-transformer';
-import { CustomerAuthResponse, CustomerAuthSocialResponse, CustomerResponse } from './dto/customer.response';
+import { CustomerAuthResponse, CustomerAuthSocialResponse, CustomerPublicResponse, CustomerResponse } from './dto/customer.response';
 import { PaginatedResponse } from 'src/common/dto/pagination.response';
 
 @ApiTags('customers')
@@ -80,7 +80,7 @@ export class CustomersController {
     return {
       accessToken: this.jwtService.sign(payload),
       customer: plainToInstance(
-        CustomerResponse,
+        CustomerPublicResponse,
         customer,
         { excludeExtraneousValues: true }
       )
@@ -112,7 +112,7 @@ export class CustomersController {
     return {
       accessToken: this.jwtService.sign(payload),
       customer: plainToInstance(
-        CustomerResponse,
+        CustomerPublicResponse,
         customer,
         { excludeExtraneousValues: true }
       )

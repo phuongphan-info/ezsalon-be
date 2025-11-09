@@ -79,6 +79,58 @@ export class CustomerResponse {
   @Expose()
   @Type(() => Date)
   updatedAt: Date;
+}
+
+export class CustomerPublicResponse {
+  @ApiProperty({ description: 'Customer UUID' })
+  @Expose()
+  uuid: string;
+
+  @ApiProperty({ description: 'Email address' })
+  @Expose()
+  email: string;
+
+  @ApiProperty({ description: 'Full name' })
+  @Expose()
+  name: string;
+
+  @ApiPropertyOptional({ description: 'Phone number' })
+  @Expose()
+  phone?: string;
+
+  @ApiPropertyOptional({ description: 'Date of birth' })
+  @Expose()
+  @Type(() => Date)
+  dateOfBirth?: Date;
+
+  @ApiPropertyOptional({
+    description: 'Gender',
+    enum: [GENDER.FEMALE, GENDER.MALE, GENDER.OTHER],
+  })
+  @Expose()
+  gender?: string;
+
+  @ApiPropertyOptional({ description: 'Address' })
+  @Expose()
+  address?: string;
+
+  @ApiPropertyOptional({ description: 'Profile avatar URL' })
+  @Expose()
+  avatar?: string;
+
+  @ApiPropertyOptional({ description: 'Notes about the customer' })
+  @Expose()
+  notes?: string;
+
+  @ApiProperty({ description: 'Creation timestamp' })
+  @Expose()
+  @Type(() => Date)
+  createdAt: Date;
+
+  @ApiProperty({ description: 'Last update timestamp' })
+  @Expose()
+  @Type(() => Date)
+  updatedAt: Date;
 
   @ApiProperty({ description: 'Whether this is a new user' })
   @Expose()
@@ -92,7 +144,7 @@ export class CustomerAuthResponse {
 
   @ApiProperty({ description: 'Customer information' })
   @Expose()
-  customer: CustomerResponse;
+  customer: CustomerPublicResponse;
 }
 
 export class CustomerSocialResponse {
