@@ -18,7 +18,6 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Check if user status is ACTIVED
     if (user.status !== USER.STATUS_ACTIVED) {
       throw new UnauthorizedException('Account is not active. Please contact support.');
     }
@@ -35,37 +34,7 @@ export class AuthService {
     const payload = { email: user.email, sub: user.uuid };
     return {
       accessToken: this.jwtService.sign(payload),
-      user: {
-        id: user.uuid,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      },
+      user
     };
-  }
-
-  async socialLogin(user: any) {
-    const payload = { email: user.email, sub: user.uuid };
-    return {
-      accessToken: this.jwtService.sign(payload),
-      user: {
-        uuid: user.uuid,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      },
-    };
-  }
-
-  async validateUser(email: string, password: string) {
-    const user = await this.usersService.findByEmail(email);
-    if (
-      user &&
-      (await this.usersService.validatePassword(password, user.password))
-    ) {
-      const { password: _, ...result } = user;
-      return result;
-    }
-    return null;
   }
 }

@@ -16,11 +16,11 @@ import { PaymentsService } from './payments.service';
 import {
   CreateCheckoutSessionDto,
   CheckoutSessionResponse,
-  PaymentHistoryResponseDto,
+  PaymentHistoryResponse,
   PaymentHistoryQueryDto,
-  SubscriptionHistoryResponseDto,
+  SubscriptionHistoryResponse,
   SubscriptionHistoryQueryDto,
-} from './payments.dto';
+} from './dto/payments.dto';
 import { CustomerJwtAuthGuard } from 'src/customers/guards/customer-jwt-auth.guard';
 import { CurrentCustomer } from 'src/customers/decorators/current-customer.decorator';
 
@@ -52,11 +52,11 @@ export class PaymentsController {
   @UseGuards(CustomerJwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get payment history for current customer' })
-  @ApiResponse({ status: 200, type: PaymentHistoryResponseDto })
+  @ApiResponse({ status: 200, type: PaymentHistoryResponse })
   async getPaymentHistory(
     @Query() query: PaymentHistoryQueryDto,
     @CurrentCustomer() currentCustomer: any,
-  ): Promise<PaymentHistoryResponseDto> {
+  ): Promise<PaymentHistoryResponse> {
     const customer = currentCustomer?.customer;
     if (!customer?.uuid) {
       throw new NotFoundException('Customer not found');
@@ -69,11 +69,11 @@ export class PaymentsController {
   @UseGuards(CustomerJwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get subscription history for current customer' })
-  @ApiResponse({ status: 200, type: SubscriptionHistoryResponseDto })
+  @ApiResponse({ status: 200, type: SubscriptionHistoryResponse })
   async getSubscriptionHistory(
     @Query() query: SubscriptionHistoryQueryDto,
     @CurrentCustomer() currentCustomer: any,
-  ): Promise<SubscriptionHistoryResponseDto> {
+  ): Promise<SubscriptionHistoryResponse> {
     const customer = currentCustomer?.customer;
     if (!customer?.uuid) {
       throw new NotFoundException('Customer not found');

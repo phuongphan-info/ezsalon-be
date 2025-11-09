@@ -1,19 +1,17 @@
 import {
   ConflictException,
   Injectable,
-  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
-import { Repository, DataSource } from 'typeorm';
+import { Repository } from 'typeorm';
 import { plainToInstance } from 'class-transformer';
 import { Customer, CUSTOMER_TABLE_NAME } from './entities/customer.entity';
-import { CreateCustomerDto, UpdateCustomerDto } from './dto/customer.dto';
+import { CreateCustomerDto, UpdateCustomerDto, UpdateCurrentCustomerDto, CustomerQueryDto, RegisterCustomerDto } from './dto/customer.dto';
 import { CustomerSalonsService } from './customer-salons.service';
 import { CUSTOMER_SALON_ROLE, CustomerSalon } from './entities/customer-salon.entity';
 import { CacheService } from '../common/services/cache.service';
-import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
-import { User } from 'src/users/entities/user.entity';
+import { PaginationDto } from '../common/dto/pagination.dto';
 
 @Injectable()
 export class CustomersService {
@@ -24,14 +22,11 @@ export class CustomersService {
     private readonly cacheService: CacheService,
   ) {}
 
-  /**
-   * Clear all customer-related caches including related entities
-   */
   private async clearCustomerCaches(): Promise<void> {
     await this.cacheService.clearRelatedCaches(CUSTOMER_TABLE_NAME);
   }
 
-  async create(createCustomerDto: CreateCustomerDto): Promise<Customer> {
+  async create(createCustomerDto: CreateCustomerDto | RegisterCustomerDto): Promise<Customer> {
     // Check for existing customer with same email
     const existingCustomerByEmail = await this.customerRepository.findOne({
       where: { email: createCustomerDto.email },
@@ -87,19 +82,11 @@ export class CustomersService {
   }
 
   async findAllPaginated(
-    paginationDto: PaginationDto,
-    salonUuid: string,
-    customerUuid?: string | null,
-    userUuid?: string | null,
-    roles?: string[] | null,
-    search?: string | null,
-    status?: string | null
-  ): Promise<PaginatedResponse<Record<string, any>>> {
-    const { page, limit } = paginationDto;
+    query: CustomerQueryDto
+  ): Promise<{ entities: any; total: number; page: number; limit: number }> {
     return await this.cacheService.caching(
-      CUSTOMER_TABLE_NAME,
-      { page, limit, salonUuid, userUuid, roles },
-      async () => {
+      CUSTOMER_TABLE_NAME, query, async () => {
+        const { page, limit, salonUuid, customerUuid, userUuid, roles, status, search } = query;
         const queryBuilder = this.customerRepository
           .createQueryBuilder('customers')
           .innerJoin(CustomerSalon, 'cs', 'cs.customerUuid = customers.uuid')
@@ -129,37 +116,28 @@ export class CustomersService {
         }
 
         queryBuilder.orderBy('customers.createdAt', 'DESC');
-        queryBuilder.addSelect('cs.roleName', 'role');
+        queryBuilder.addSelect('cs.roleName', 'roleName');
 
-        const [countResult] = await queryBuilder.clone().select('COUNT(DISTINCT customers.uuid)', 'count').getRawMany();
-        const total = Number(countResult?.count || 0);
-
-        const result = await queryBuilder
+        const total = await queryBuilder.getCount();
+        const { raw, entities } = await queryBuilder
           .skip((page - 1) * limit)
           .take(limit)
           .getRawAndEntities();
 
-        const customersWithRoles = result.entities.map((customer, index) => {
-          const raw = result.raw[index];
-          const { password, ...customerWithoutPassword } = customer;
-          return plainToInstance(
-            Customer,
-            {
-              ...customerWithoutPassword,
-              roleName: raw?.role
-            },
-            {
-              excludeExtraneousValues: false
-            }
-          );
-        });
-
-        return new PaginatedResponse(customersWithRoles, total, page, limit);
-      }
+        return {
+          entities: entities.map((customer, index) => ({
+            ...customer,
+            roleName: raw[index].roleName
+          })),
+          total,
+          page,
+          limit
+        };
+      },
     );
   }
 
-  async findOne(salonUuid: string, uuid: string, userUuid?: string): Promise<Customer | (Customer & { role?: string })> {
+  async findOne(salonUuid: string, uuid: string, userUuid?: string): Promise<Customer | (Customer & { roleName?: string })> {
     return await this.cacheService.caching(
       CUSTOMER_TABLE_NAME,
       { salonUuid, uuid, currentUser: userUuid },
@@ -175,13 +153,9 @@ export class CustomersService {
         }
 
         queryBuilder.addSelect('cs.roleName', 'role');
-        const result = await queryBuilder.getRawAndEntities();
-        const customer = result.entities[0];
-        if (customer && result.raw[0]) {
-          (customer as Customer & { roleName: string }).roleName = result.raw[0].role;
-        }
-        return customer;
-      }
+        return await queryBuilder.getOne();
+      },
+      async (data) => plainToInstance(Customer, data)
     );
   }
 
@@ -200,7 +174,30 @@ export class CustomersService {
         }
 
         return await queryBuilder.getOne();
-      }
+      },
+      async (data) => plainToInstance(Customer, data)
+    );
+  }
+
+  async findByEmail(email: string, isCache: boolean = true): Promise<Customer | null> {
+    return await this.cacheService.caching(
+      CUSTOMER_TABLE_NAME,
+      { email, isCache },
+      async () => await this.customerRepository.findOne({
+        where: { email },
+      }),
+      async (data) => plainToInstance(Customer, data)
+    );
+  }
+
+  async findByPhone(phone: string, isCache: boolean = true): Promise<Customer | null> {
+    return await this.cacheService.caching(
+      CUSTOMER_TABLE_NAME,
+      { phone, isCache },
+      async () => await this.customerRepository.findOne({
+          where: { phone },
+      }),
+      async (data) => plainToInstance(Customer, data)
     );
   }
 
@@ -235,36 +232,33 @@ export class CustomersService {
     return updatedCustomer;
   }
 
+  async updateCurrentCustomer(customerUuid: string, dto: UpdateCurrentCustomerDto): Promise<Customer> {
+    const customer = await this.customerRepository.findOne({ where: { uuid: customerUuid } });
+    if (!customer) {
+      return null;
+    }
+
+    // Only assign allowed fields explicitly
+    const { name, dateOfBirth, gender, address, avatar, notes } = dto;
+    if (name !== undefined) customer.name = name;
+    if (dateOfBirth !== undefined) customer.dateOfBirth = dateOfBirth as any; // cast if necessary
+    if (gender !== undefined) customer.gender = gender;
+    if (address !== undefined) customer.address = address;
+    if (avatar !== undefined) customer.avatar = avatar;
+    if (notes !== undefined) customer.notes = notes;
+
+    const updated = await this.customerRepository.save(customer);
+    await this.clearCustomerCaches();
+    
+    return updated;
+  }
+
   async remove(salonUuid: string, uuid: string, userUuid?: string): Promise<void> {
     const customer = await this.findOne(salonUuid, uuid, userUuid);
 
     await this.customerRepository.remove(customer);
 
     await this.clearCustomerCaches();
-  }
-
-  async findByEmail(email: string): Promise<Customer | null> {
-    return await this.cacheService.caching(
-      CUSTOMER_TABLE_NAME,
-      { email },
-      async () => {
-        return await this.customerRepository.findOne({
-          where: { email },
-        });
-      }
-    );
-  }
-
-  async findByPhone(phone: string): Promise<Customer | null> {
-    return await this.cacheService.caching(
-      CUSTOMER_TABLE_NAME,
-      { phone },
-      async () => {
-        return await this.customerRepository.findOne({
-          where: { phone },
-        });
-      }
-    );
   }
 
   async createSocialCustomer(customerData: {

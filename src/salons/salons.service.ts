@@ -5,7 +5,8 @@ import { CreateSalonDto, UpdateSalonDto } from './dto/salon.dto';
 import { Salon, SALON_TABLE_NAME } from './entities/salon.entity';
 import { CustomerSalon } from '../customers/entities/customer-salon.entity';
 import { CacheService } from '../common/services/cache.service';
-import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
+import { PaginationDto } from '../common/dto/pagination.dto';
+import { PaginatedResponse } from 'src/common/dto/pagination.response';
 
 @Injectable()
 export class SalonsService {

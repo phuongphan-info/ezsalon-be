@@ -19,7 +19,7 @@ export enum SALON_STATUS {
 
 @Entity(SALON_TABLE_NAME)
 export class Salon {
-  @ApiProperty({ description: 'Salon ID' })
+  @ApiProperty({ description: 'Salon UUID' })
   @PrimaryGeneratedColumn('uuid')
   uuid!: string;
 

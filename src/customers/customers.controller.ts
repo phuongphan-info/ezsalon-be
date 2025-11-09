@@ -9,7 +9,6 @@ import {
   Post,
   Query,
   UnauthorizedException,
-  NotFoundException,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -23,8 +22,7 @@ import {
 } from '@nestjs/swagger';
 import { JwtService } from '@nestjs/jwt';
 import { AuthGuard } from '@nestjs/passport';
-import { CreateCustomerDto, UpdateCustomerDto, CustomerLoginDto } from './dto/customer.dto';
-import { PaginationDto } from '../common/dto/pagination.dto';
+import { CreateCustomerDto, UpdateCustomerDto, CustomerLoginDto, UpdateCurrentCustomerDto, CustomerQueryDto, RegisterCustomerDto } from './dto/customer.dto';
 import { CustomersService } from './customers.service';
 import { CustomerSalonsService } from './customer-salons.service';
 import { CustomerJwtAuthGuard } from './guards/customer-jwt-auth.guard';
@@ -42,6 +40,9 @@ import { SalonManagementAccessCustomer } from './decorators/salon-management-acc
 import { Customer, CUSTOMER_STATUS } from './entities/customer.entity';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { CUSTOMER_SALON_ROLE } from './entities/customer-salon.entity';
+import { plainToInstance } from 'class-transformer';
+import { CustomerAuthResponse, CustomerAuthSocialResponse, CustomerResponse } from './dto/customer.response';
+import { PaginatedResponse } from 'src/common/dto/pagination.response';
 
 @ApiTags('customers')
 @Controller('customers')
@@ -65,27 +66,24 @@ export class CustomersController {
   @Post('register')
   @Public()
   @ApiOperation({ summary: 'Register new owner customer' })
-  @ApiResponse({ status: 201, description: 'Owner registered successfully' })
+  @ApiResponse({ status: 201, description: 'Owner registered successfully', type: CustomerAuthResponse })
   @ApiResponse({ status: 400, description: 'Bad request - Invalid input data or phone number format' })
   @ApiResponse({ status: 409, description: 'Conflict - Customer with this email or phone number already exists' })
-  async register(@Body() createCustomerDto: CreateCustomerDto) {
-    // Registration creates new customer as owner by default
+  async register(@Body() createCustomerDto: RegisterCustomerDto): Promise<CustomerAuthResponse> {
     const customer = await this.customersService.create({
       ...createCustomerDto,
       status: CUSTOMER_STATUS.ACTIVED,
-      isOwner: true, // New registered customers are owners by default
-      createdByUuid: null, // Self-registration, no creator.             
+      isOwner: true,
+      createdByUuid: null,
     });
-
     const payload = { email: customer.email, sub: customer.uuid, type: 'customer' };
-
     return {
       accessToken: this.jwtService.sign(payload),
-      customer: {
-        uuid: customer.uuid,
-        email: customer.email,
-        name: customer.name,
-      },
+      customer: plainToInstance(
+        CustomerResponse,
+        customer,
+        { excludeExtraneousValues: true }
+      )
     };
   }
 
@@ -93,54 +91,34 @@ export class CustomersController {
   @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Customer login' })
-  @ApiResponse({ status: 200, description: 'Login successful', schema: { 
-    properties: { 
-      accessToken: { type: 'string' }, 
-      customer: { 
-        type: 'object',
-        properties: {
-          id: { type: 'string' },
-          email: { type: 'string' },
-          name: { type: 'string' },
-          roleName: { type: 'string' }
-        }
-      } 
-    } 
-  }})
+  @ApiResponse({ status: 200, description: 'Login successful', type: CustomerAuthResponse })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
-  async login(@Body() customerLoginDto: CustomerLoginDto) {
+  async login(@Body() customerLoginDto: CustomerLoginDto): Promise<CustomerAuthResponse> {
     const customer = await this.customersService.findByEmail(customerLoginDto.email);
-
     if (!customer) {
       throw new UnauthorizedException('Invalid credentials');
     }
-
-    // Check if customer status is ACTIVED
     if (customer.status !== CUSTOMER_STATUS.ACTIVED) {
       throw new UnauthorizedException('Account is not active. Please contact support.');
     }
-
     const isPasswordValid = await this.customersService.validatePassword(
       customerLoginDto.password,
       customer.password,
     );
-
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
     }
-
     const payload = { email: customer.email, sub: customer.uuid, type: 'customer' };
     return {
       accessToken: this.jwtService.sign(payload),
-      customer: {
-        uuid: customer.uuid,
-        email: customer.email,
-        name: customer.name,
-      },
+      customer: plainToInstance(
+        CustomerResponse,
+        customer,
+        { excludeExtraneousValues: true }
+      )
     };
   }
 
-  // Social OAuth Routes
   @Public()
   @ApiOperation({ summary: 'Initiate Google OAuth login' })
   @Get('login/google')
@@ -149,11 +127,11 @@ export class CustomersController {
 
   @Public()
   @ApiOperation({ summary: 'Google OAuth callback' })
-  @ApiResponse({ status: 200, description: 'Returns JWT token and customer info as JSON' })
+  @ApiResponse({ status: 200, description: 'Returns JWT token and customer info as JSON', type: CustomerAuthSocialResponse })
   @ApiResponse({ status: 500, description: 'Internal server error' })
   @Get('login/google/callback')
   @UseGuards(AuthGuard('google'))
-  async googleAuthRedirect(@CurrentUser() currentUser: any) {
+  async googleAuthRedirect(@CurrentUser() currentUser: any): Promise<CustomerAuthSocialResponse> {
     return this.buildSocialLoginResponse(currentUser);
   }
 
@@ -165,11 +143,11 @@ export class CustomersController {
 
   @Public()
   @ApiOperation({ summary: 'Facebook OAuth callback' })
-  @ApiResponse({ status: 200, description: 'Returns JWT token and customer info as JSON' })
+  @ApiResponse({ status: 200, description: 'Returns JWT token and customer info as JSON', type: CustomerAuthSocialResponse })
   @ApiResponse({ status: 500, description: 'Internal server error' })
   @Get('login/facebook/callback')
   @UseGuards(AuthGuard('facebook'))
-  async facebookAuthRedirect(@CurrentUser() currentUser: any) {
+  async facebookAuthRedirect(@CurrentUser() currentUser: any): Promise<CustomerAuthSocialResponse> {
     return this.buildSocialLoginResponse(currentUser);
   }
 
@@ -181,26 +159,46 @@ export class CustomersController {
 
   @Public()
   @ApiOperation({ summary: 'Apple OAuth callback' })
-  @ApiResponse({ status: 200, description: 'Returns JWT token and customer info as JSON' })
+  @ApiResponse({ status: 200, description: 'Returns JWT token and customer info as JSON', type: CustomerAuthSocialResponse })
   @ApiResponse({ status: 500, description: 'Internal server error' })
   @Get('login/apple/callback')
   @UseGuards(AuthGuard('apple'))
-  async appleAuthRedirect(@CurrentUser() currentUser: any) {
+  async appleAuthRedirect(@CurrentUser() currentUser: any): Promise<CustomerAuthSocialResponse> {
     return this.buildSocialLoginResponse(currentUser);
   }
 
   @Get('profile')
   @ApiOperation({ summary: 'Get current customer profile' })
-  @ApiResponse({ status: 200, description: 'Customer profile retrieved successfully' })
+  @ApiResponse({ status: 200, description: 'Customer profile retrieved successfully', type: CustomerResponse })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  getCurrentCustomer(@CurrentCustomer() currentCustomer: any) {
-    return currentCustomer.customer;
+  getCurrentCustomer(@CurrentCustomer() { customer }: { customer: Customer }): CustomerResponse {
+    return plainToInstance(
+      CustomerResponse,
+      customer,
+      { excludeExtraneousValues: true }
+    );
+  }
+
+  @Patch('profile')
+  @ApiOperation({ summary: 'Update current logged-in customer (self)' })
+  @ApiResponse({ status: 200, description: 'Customer updated successfully', type: CustomerResponse })
+  @ApiResponse({ status: 400, description: 'Bad request - Invalid input data' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async updateCurrent(
+    @CurrentCustomer() { customer }: { customer: Customer },
+    @Body() updateCurrentDto: UpdateCurrentCustomerDto
+  ): Promise<CustomerResponse> {
+    return plainToInstance(
+      CustomerResponse,
+      await this.customersService.updateCurrentCustomer(customer.uuid, updateCurrentDto),
+      { excludeExtraneousValues: true }
+    );
   }
 
   @Post(':salonUuid')
   @SalonOwnership()
   @ApiOperation({ summary: 'Create a new customer and optionally assign to a salon with specified role' })
-  @ApiResponse({ status: 201, description: 'Customer created successfully and assigned to salon with role if salonUuid provided' })
+  @ApiResponse({ status: 201, description: 'Customer created successfully and assigned to salon with role if salonUuid provided', type: CustomerResponse })
   @ApiResponse({ status: 400, description: 'Bad request - Invalid input data or phone number format' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden - Can only assign customers to salons you own' })
@@ -209,32 +207,36 @@ export class CustomersController {
     @Param('salonUuid', new ParseUUIDPipe({ version: '4' })) salonUuid: string,
     @Body() createCustomerDto: CreateCustomerDto,
     @CurrentCustomer() { customer }: { customer: Customer }
-  ) {
+  ): Promise<CustomerResponse> {
     await this.customerSalonsService.validateSalonManagementCreateCustomerWithRole(
       customer.uuid,
       salonUuid,
       createCustomerDto.roleName
     );
-    return await this.customersService.create({
-      ...createCustomerDto,
-      isOwner: false,
-      salonUuid,
-      createdByUuid: customer.uuid,
-    });
+    return plainToInstance(
+      CustomerResponse,
+      await this.customersService.create({
+        ...createCustomerDto,
+        isOwner: false,
+        salonUuid,
+        createdByUuid: customer.uuid,
+      }),
+      { excludeExtraneousValues: true }
+    );
   }
 
   @Get(':salonUuid')
   @ManagerOrOwnerOnly()
   @ApiOperation({ summary: 'Get customers based on role with pagination - Owners see managers/staff, Managers see staff only' })
-  @ApiResponse({ status: 200, description: 'Customers retrieved successfully with pagination' })
+  @ApiResponse({ status: 200, description: 'Customers retrieved successfully with pagination', type: PaginatedResponse<CustomerResponse> })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden - Only owners and managers can access customer lists' })
   @ApiResponse({ status: 400, description: 'Bad Request - Invalid salon UUID format' })
   async findAll(
     @Param('salonUuid', new ParseUUIDPipe({ version: '4' })) salonUuid: string,
-    @Query() paginationDto: PaginationDto,
+    @Query() query: CustomerQueryDto,
     @CurrentCustomer() { customer }: { customer: Customer }
-  ) {
+  ): Promise<PaginatedResponse<CustomerResponse>> {
     let roles: string[];
     if (await this.customerSalonsService.isBusinessOwner(customer.uuid, salonUuid)) {
       roles = [CUSTOMER_SALON_ROLE.OWNER, CUSTOMER_SALON_ROLE.MANAGER, CUSTOMER_SALON_ROLE.FRONT_DESK, CUSTOMER_SALON_ROLE.STAFF];
@@ -245,7 +247,15 @@ export class CustomersController {
     } else {
       throw new ForbiddenException('Unauthorized to access customers of this salon');
     }
-    return await this.customersService.findAllPaginated(paginationDto, salonUuid, null, null, roles);
+    const { entities, total, page, limit } = await this.customersService.findAllPaginated({
+      ...query,
+      salonUuid,
+      roles
+    });
+    return new PaginatedResponse(
+      entities.map((row) => plainToInstance(CustomerResponse, row, { excludeExtraneousValues: true })),
+      total, page, limit
+    );
   }
 
   @Get(':salonUuid/:uuid')
@@ -253,7 +263,7 @@ export class CustomersController {
   @SalonManagement()
   @SalonManagementAccessCustomer()
   @ApiOperation({ summary: 'Get customer by UUID (only customers belonging to your salons)' })
-  @ApiResponse({ status: 200, description: 'Customer retrieved successfully' })
+  @ApiResponse({ status: 200, description: 'Customer retrieved successfully', type: CustomerResponse })
   @ApiResponse({ status: 404, description: 'Customer not found in this salon' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden - Customer does not belong to your salons' })
@@ -261,10 +271,12 @@ export class CustomersController {
     @Param('salonUuid', new ParseUUIDPipe({ version: '4' })) salonUuid: string,
     @Param('uuid', new ParseUUIDPipe({ version: '4' })) uuid: string,
     @CurrentCustomer() { customer }: { customer: Customer }
-  ) {
-    // Guard already validated and fetched the customer
-    const foundCustomer = await this.customersService.findOne(salonUuid, uuid);
-    return foundCustomer;
+  ): Promise<CustomerResponse> {
+    return plainToInstance(
+      CustomerResponse,
+      await this.customersService.findOne(salonUuid, uuid),
+      { excludeExtraneousValues: true }
+    );
   }
 
   @Patch(':salonUuid/:uuid')
@@ -272,7 +284,7 @@ export class CustomersController {
   @SalonManagement()
   @SalonManagementAccessCustomer()
   @ApiOperation({ summary: 'Update customer (only customers belonging to your salons)' })
-  @ApiResponse({ status: 200, description: 'Customer updated successfully' })
+  @ApiResponse({ status: 200, description: 'Customer updated successfully', type: CustomerResponse })
   @ApiResponse({ status: 400, description: 'Bad request - Invalid input data or phone number format' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden - Customer does not belong to your salons' })
@@ -283,7 +295,7 @@ export class CustomersController {
     @Param('uuid', new ParseUUIDPipe({ version: '4' })) uuid: string,
     @Body() updateCustomerDto: UpdateCustomerDto,
     @CurrentCustomer() { customer }: { customer: Customer }
-  ) {
+  ): Promise<CustomerResponse> {
     if (updateCustomerDto.roleName) {
       await this.customerSalonsService.validateSalonManagementCreateCustomerWithRole(
         customer.uuid,
@@ -291,8 +303,11 @@ export class CustomersController {
         updateCustomerDto.roleName
       );
     }
-    // Guard already validated and fetched the customer
-    return await this.customersService.update(salonUuid, uuid, updateCustomerDto);
+    return plainToInstance(
+      CustomerResponse,
+      await this.customersService.update(salonUuid, uuid, updateCustomerDto),
+      { excludeExtraneousValues: true }
+    );
   }
 
   @Delete(':salonUuid/:uuid')
@@ -309,28 +324,25 @@ export class CustomersController {
     @Param('uuid', new ParseUUIDPipe({ version: '4' })) uuid: string,
     @CurrentCustomer() { customer }: { customer: Customer }
   ) {
-    // Guard already validated and fetched the customer
     return await this.customersService.remove(salonUuid, uuid);
   }
 
-  private buildSocialLoginResponse(authResult: any) {
+  private buildSocialLoginResponse(authResult: any): CustomerAuthSocialResponse {
     if (!authResult || !authResult.user) {
       throw new UnauthorizedException('Social authentication failed');
     }
-
     const { user: customer, socialAccount, isNewUser } = authResult;
-
     const payload = { email: customer.email, sub: customer.uuid, type: 'customer' };
     const accessToken = this.jwtService.sign(payload);
-
-    return {
+    return plainToInstance(
+      CustomerAuthSocialResponse, {
       accessToken,
       customer: {
-        uuid: customer.uuid,
-        email: customer.email,
-        name: customer.name,
-        avatar: customer.avatar,
-        role: customer.role,
+        ...plainToInstance(
+          CustomerResponse,
+          customer,
+          { excludeExtraneousValues: true }
+        ),
         isNewUser,
       },
       socialAccount: socialAccount
@@ -341,6 +353,8 @@ export class CustomersController {
             avatarUrl: socialAccount.avatarUrl,
           }
         : null,
-    };
+    },
+      { excludeExtraneousValues: true }
+    );
   }
 }

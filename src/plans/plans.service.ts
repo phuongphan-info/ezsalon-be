@@ -8,7 +8,8 @@ import { Repository, FindManyOptions, Like } from 'typeorm';
 import { Plan, PLAN_TABLE_NAME, PLAN_STATUS, PLAN_TYPE, BILLING_INTERVAL } from './entities/plan.entity';
 import { CreatePlanDto, UpdatePlanDto } from './dto/plan.dto';
 import { CacheService } from '../common/services/cache.service';
-import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
+import { PaginationDto } from '../common/dto/pagination.dto';
+import { PublicPlanResponse } from './dto/plan.response';
 
 @Injectable()
 export class PlansService {
@@ -26,16 +27,10 @@ export class PlansService {
     return typeof count === 'number' && count > 0 ? count : 1;
   }
 
-  /**
-   * Clear all plan-related caches
-   */
   private async clearPlanCaches(): Promise<void> {
     await this.cacheService.clearRelatedCaches(PLAN_TABLE_NAME);
   }
 
-  /**
-   * Create a new plan
-   */
   async create(createPlanDto: CreatePlanDto, createdByUuid?: string): Promise<Plan> {
     const normalizedInterval = this.normalizeBillingInterval(createPlanDto.billingInterval);
     const normalizedIntervalCount = this.normalizeBillingIntervalCount(createPlanDto.billingIntervalCount);
@@ -101,16 +96,13 @@ export class PlansService {
     return savedPlan;
   }
 
-  /**
-   * Find all plans with pagination and optional filtering
-   */
   async findAllPaginated(
     paginationDto: PaginationDto,
     search?: string,
     status?: string,
     type?: string,
     createdByUuid?: string,
-  ): Promise<PaginatedResponse<Plan>> {
+  ): Promise<{ entities: any; total: number; page: number; limit: number }> {
     const { page = 1, limit = 10 } = paginationDto;
     return await this.cacheService.caching(
       PLAN_TABLE_NAME,
@@ -146,34 +138,13 @@ export class PlansService {
           },
         };
 
-        const [plans, total] = await this.planRepository.findAndCount(options);
+        const [entities, total] = await this.planRepository.findAndCount(options);
 
-        return new PaginatedResponse(plans, total, page, limit);
+        return { entities, total, page, limit };
       }
     );
   }
 
-  /**
-   * Find all plans without pagination
-   */
-  async findAll(): Promise<Plan[]> {
-    return await this.cacheService.caching(
-      PLAN_TABLE_NAME,
-      'all',
-      async () => {
-        return this.planRepository.find({
-          order: {
-            displayOrder: 'ASC',
-            createdAt: 'DESC',
-          },
-        });
-      }
-    );
-  }
-
-  /**
-   * Find a plan by UUID
-   */
   async findOne(uuid: string): Promise<Plan> {
     return await this.cacheService.caching(
       PLAN_TABLE_NAME,
@@ -190,9 +161,6 @@ export class PlansService {
     );
   }
 
-  /**
-   * Find a plan by Stripe Price ID
-   */
   async findByStripePriceId(stripePriceId: string): Promise<Plan | null> {
     return await this.cacheService.caching(
       PLAN_TABLE_NAME,
@@ -203,9 +171,6 @@ export class PlansService {
     );
   }
 
-  /**
-   * Update a plan
-   */
   async update(uuid: string, updatePlanDto: UpdatePlanDto): Promise<Plan> {
     const plan = await this.findOne(uuid);
     const targetName = updatePlanDto.name ?? plan.name;
@@ -259,9 +224,6 @@ export class PlansService {
     return updatedPlan;
   }
 
-  /**
-   * Remove a plan
-   */
   async remove(uuid: string): Promise<void> {
     const plan = await this.findOne(uuid);
 
@@ -271,9 +233,6 @@ export class PlansService {
     await this.clearPlanCaches();
   }
 
-  /**
-   * Get plans count by status
-   */
   async getPlanStats(): Promise<{
     total: number;
     active: number;
@@ -314,18 +273,14 @@ export class PlansService {
     );
   }
 
-  /**
-   * Get all active plans with limited fields for public access
-   */
-  async findActivePublic(): Promise<Pick<Plan, 'uuid' | 'name' | 'description' | 'priceCents' | 'currency' | 'billingInterval' | 'billingIntervalCount' | 'trialPeriodDays' | 'createdAt' | 'updatedAt'>[]> {
+  async findActivePublic(): Promise<PublicPlanResponse[]> {
     return await this.cacheService.caching(
       PLAN_TABLE_NAME,
       'active_public',
       async () => {
-        return this.planRepository.find({
+        return await this.planRepository.find({
           where: { status: PLAN_STATUS.ACTIVE },
-          select: ['uuid', 'name', 'description', 'priceCents', 'currency', 'billingInterval', 'billingIntervalCount', 'trialPeriodDays', 'createdAt', 'updatedAt'],
-          order: { displayOrder: 'ASC', createdAt: 'DESC' }
+          order: { displayOrder: 'DESC', createdAt: 'DESC' }
         });
       }
     );

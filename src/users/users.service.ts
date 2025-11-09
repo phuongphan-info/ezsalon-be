@@ -10,8 +10,8 @@ import { Repository } from 'typeorm';
 import { Role } from '../roles/entities/role.entity';
 import { User, USER_TABLE_NAME } from './entities/user.entity';
 import { CacheService } from '../common/services/cache.service';
-import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
-import { UpdateUserDto, CreateUserDto } from './dto/user.dto';
+import { UpdateUserDto, CreateUserDto, UserQueryDto } from './dto/user.dto';
+import { plainToInstance } from 'class-transformer';
 
 @Injectable()
 export class UsersService {
@@ -24,21 +24,14 @@ export class UsersService {
     private readonly roleRepository: Repository<Role>,
     private readonly cacheService: CacheService,
   ) {
-    // Initialize protected admin emails from environment variable
     const adminEmails = process.env.PROTECTED_ADMIN_EMAILS || 'admin@ezsalon.com';
     this.protectedAdminEmails = adminEmails.split(',').map(email => email.trim());
   }
 
-  /**
-   * Check if the given email is a protected admin email
-   */
   private isProtectedAdminEmail(email: string): boolean {
     return this.protectedAdminEmails.includes(email);
   }
 
-  /**
-   * Clear all user-related caches including related entities
-   */
   private async clearUserCaches(): Promise<void> {
     await this.cacheService.clearRelatedCaches(USER_TABLE_NAME);
   }
@@ -47,12 +40,10 @@ export class UsersService {
     const existingUser = await this.userRepository.findOne({
       where: { email: createUserDto.email },
     });
-
     if (existingUser) {
       throw new ConflictException('Email already exists');
     }
 
-    // Find the role if provided, otherwise leave it null
     let role: Role | null = null;
     if (createUserDto.role) {
       role = await this.roleRepository.findOne({
@@ -64,7 +55,6 @@ export class UsersService {
       }
     }
 
-    // Find the creator if provided
     let createdBy: User | undefined;
     if (createdByUserId) {
       createdBy = await this.userRepository.findOne({
@@ -84,124 +74,69 @@ export class UsersService {
 
     const savedUser = await this.userRepository.save(user);
     
-    // Clear cache after create
     await this.clearUserCaches();
     
     return savedUser;
   }
-
-  async findAllPaginated(paginationDto: PaginationDto): Promise<PaginatedResponse<User>> {
-    const { page, limit } = paginationDto;
-    return await this.cacheService.caching(
-      USER_TABLE_NAME,
-      { page, limit },
+  
+  async findAllPaginated(
+    query: UserQueryDto,
+  ): Promise<{ entities: any; total: number; page: number; limit: number }> {
+    return await this.cacheService.caching(USER_TABLE_NAME, query,
       async () => {
-        const [users, total] = await this.userRepository
-          .createQueryBuilder('user')
-          .leftJoinAndSelect('user.role', 'role')
-          .leftJoinAndSelect('user.createdBy', 'createdBy')
-          .leftJoinAndSelect('createdBy.role', 'createdByRole')
-          .select([
-            'user.uuid',
-            'user.email',
-            'user.name',
-            'user.phone',
-            'user.avatar',
-            'user.status',
-            'user.createdAt',
-            'user.updatedAt',
-            'role.uuid',
-            'role.name',
-            'role.displayName',
-            'role.description',
-            'role.color',
-            'role.createdAt',
-            'role.updatedAt',
-            'createdBy.uuid',
-            'createdBy.email',
-            'createdBy.name',
-            'createdBy.phone',
-            'createdBy.avatar',
-            'createdBy.status',
-            'createdBy.createdAt',
-            'createdBy.updatedAt',
-            'createdByRole.uuid',
-            'createdByRole.name',
-            'createdByRole.displayName',
-            'createdByRole.description',
-            'createdByRole.color',
-            'createdByRole.createdAt',
-            'createdByRole.updatedAt',
-          ])
+        const { page, limit, roleUuid, createdByUuid, status, search } = query;
+        const queryBuilder = this.userRepository
+          .createQueryBuilder('users')
+          .leftJoin('users.role', 'role')
+          .leftJoin('users.createdBy', 'creator');
+
+        if (roleUuid) {
+          queryBuilder.andWhere('users.roleUuid = :roleUuid', { roleUuid });
+        }
+
+        if (createdByUuid) {
+          queryBuilder.andWhere('users.createdByUuid = :createdByUuid', { createdByUuid });
+        }
+
+        if (status) {
+          queryBuilder.andWhere('users.status = :status', { status });
+        }
+
+        if (search) {
+          queryBuilder.andWhere(
+            '(users.full_name LIKE :search OR users.email_address LIKE :search)',
+            { search: `%${search}%` }
+          );
+        }
+
+        queryBuilder.orderBy('users.createdAt', 'DESC');
+        queryBuilder.addSelect('role.name', 'roleName');
+        queryBuilder.addSelect('creator.full_name', 'createdByName');
+
+        const total = await queryBuilder.getCount();
+        const { raw, entities } = await queryBuilder
           .skip((page - 1) * limit)
           .take(limit)
-          .orderBy('user.createdAt', 'DESC')
-          .getManyAndCount();
+          .getRawAndEntities();
 
-        return new PaginatedResponse(users, total, page, limit);
-      }
+        return {
+          entities: entities.map((user, index) => ({
+            ...user,
+            roleName: raw[index].roleName,
+            createdByName: raw[index].createdByName,
+          })),
+          total,
+          page,
+          limit
+        };
+      },
     );
   }
 
-  async findByCreator(creatorId: string, paginationDto?: PaginationDto): Promise<PaginatedResponse<User> | User[]> {
-    // If pagination is provided, return paginated results
-    if (paginationDto) {
-      const { page, limit } = paginationDto;
-      return await this.cacheService.caching(
-        USER_TABLE_NAME,
-        { creatorId, page, limit },
-        async () => {
-          const [users, total] = await this.userRepository.findAndCount({
-            select: [
-              'uuid',
-              'email',
-              'name',
-              'phone',
-              'avatar',
-              'status',
-              'createdAt',
-              'updatedAt',
-            ],
-            where: { createdBy: { uuid: creatorId } },
-            relations: ['role', 'createdBy'],
-            skip: (page - 1) * limit,
-            take: limit,
-            order: { createdAt: 'DESC' },
-          });
-
-          return new PaginatedResponse(users, total, page, limit);
-        }
-      );
-    }
-
-    // Legacy support - return all users (non-paginated)
+  async findOneByOwnership(uuid: string, createdByUuid: string, hasReadAll: boolean): Promise<User> {
     return await this.cacheService.caching(
       USER_TABLE_NAME,
-      { creatorId },
-      async () => {
-        return await this.userRepository.find({
-          select: [
-            'uuid',
-            'email',
-            'name',
-            'phone',
-            'avatar',
-            'status',
-            'createdAt',
-            'updatedAt',
-          ],
-          where: { createdBy: { uuid: creatorId } },
-          relations: ['role', 'createdBy'],
-          order: { createdAt: 'DESC' },
-        });
-      }
-    );
-  }
-
-  async findOneByOwnership(uuid: string, requesterId: string, hasReadAll: boolean): Promise<User> {
-    return await this.cacheService.caching(
-      USER_TABLE_NAME,
-      { uuid, requesterId, hasReadAll },
+      { uuid, createdByUuid, hasReadAll },
       async () => {
         const user = await this.userRepository.findOne({
           where: { uuid },
@@ -212,13 +147,11 @@ export class UsersService {
           throw new NotFoundException(`User with ID ${uuid} not found`);
         }
 
-        // If user has read-all permission, they can access any user
         if (hasReadAll) {
           return user;
         }
 
-        // Otherwise, they can only access users they created or themselves
-        if (user.createdBy?.uuid === requesterId || user.uuid === requesterId) {
+        if (user.createdByUuid === createdByUuid) {
           return user;
         }
 
@@ -242,7 +175,8 @@ export class UsersService {
         }
         
         return user;
-      }
+      },
+      async (data) => plainToInstance(User, data)
     );
   }
 
@@ -255,20 +189,18 @@ export class UsersService {
           where: { email },
           relations: ['role', 'createdBy'],
         });
-      }
+      },
+      async (data) => plainToInstance(User, data)
     );
   }
 
-  async updateByOwnership(uuid: string, updateUserDto: UpdateUserDto, requesterId: string, hasUpdateAll: boolean): Promise<User> {
-    // First check if user has access to this user
-    const user = await this.findOneByOwnership(uuid, requesterId, hasUpdateAll);
+  async updateByOwnership(uuid: string, updateUserDto: UpdateUserDto, createdByUuid: string, hasUpdateAll: boolean): Promise<User> {
+    const user = await this.findOneByOwnership(uuid, createdByUuid, hasUpdateAll);
 
-    // Handle password update
     if (updateUserDto.password) {
       updateUserDto.password = await bcrypt.hash(updateUserDto.password, 10);
     }
 
-    // Handle role update
     if (updateUserDto.role) {
       const role = await this.roleRepository.findOne({
         where: { name: updateUserDto.role },
@@ -287,43 +219,36 @@ export class UsersService {
 
     const updatedUser = await this.userRepository.save(user);
     
-    // Clear cache after update
     await this.clearUserCaches();
     
     return updatedUser;
   }
 
-  async removeByOwnership(uuid: string, requesterId: string, hasDeleteAll: boolean): Promise<void> {
-    // First check if user has access to this user
-    const user = await this.findOneByOwnership(uuid, requesterId, hasDeleteAll);
+  async removeByOwnership(uuid: string, createdByUuid: string, hasDeleteAll: boolean): Promise<void> {
+    const user = await this.findOneByOwnership(uuid, createdByUuid, hasDeleteAll);
     
-    // Protect admin accounts from deletion
     if (this.isProtectedAdminEmail(user.email)) {
       throw new ForbiddenException('Cannot delete protected admin account');
     }
     
-    // Prevent users from deleting themselves
-    if (user.uuid === requesterId) {
+    if (user.uuid === createdByUuid) {
       throw new ConflictException('You cannot delete your own account');
     }
 
     await this.userRepository.remove(user);
     
-    // Clear cache after delete
     await this.clearUserCaches();
   }
 
   async remove(uuid: string): Promise<void> {
     const user = await this.findOne(uuid);
     
-    // Protect admin accounts from deletion
     if (this.isProtectedAdminEmail(user.email)) {
       throw new ForbiddenException('Cannot delete protected admin account');
     }
     
     await this.userRepository.remove(user);
     
-    // Clear cache after delete
     await this.clearUserCaches();
   }
 

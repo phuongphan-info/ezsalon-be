@@ -13,7 +13,7 @@ export const PERMISSION_TABLE_NAME = 'permissions';
 
 @Entity(PERMISSION_TABLE_NAME)
 export class Permission {
-  @ApiProperty({ description: 'Permission ID' })
+  @ApiProperty({ description: 'Permission UUID' })
   @PrimaryGeneratedColumn('uuid')
   uuid!: string;
 

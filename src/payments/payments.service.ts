@@ -12,12 +12,12 @@ import { Repository } from 'typeorm';
 import { Payment, PAYMENT_STATUS, PAYMENT_TABLE_NAME } from './entities/payment.entity';
 import {
   PaymentHistoryItemDto,
-  PaymentHistoryResponseDto,
+  PaymentHistoryResponse,
   PaymentHistoryQueryDto,
-  SubscriptionHistoryResponseDto,
+  SubscriptionHistoryResponse,
   SubscriptionHistoryItemDto,
   SubscriptionHistoryQueryDto,
-} from './payments.dto';
+} from './dto/payments.dto';
 import { CacheService } from '../common/services/cache.service';
 
 @Injectable()
@@ -58,7 +58,7 @@ export class PaymentsService {
   async getCustomerPaymentHistory(
     customerUuid: string,
     query: PaymentHistoryQueryDto,
-  ): Promise<PaymentHistoryResponseDto> {
+  ): Promise<PaymentHistoryResponse> {
     const page = query?.page ?? 1;
     const limit = query?.limit ?? 10;
     const cacheFilters: Record<string, any> = {
@@ -132,7 +132,7 @@ export class PaymentsService {
           } satisfies PaymentHistoryItemDto;
         });
 
-        return new PaymentHistoryResponseDto(items, total, page, limit);
+        return new PaymentHistoryResponse(items, total, page, limit);
       },
     );
   }
@@ -140,7 +140,7 @@ export class PaymentsService {
   async getCustomerSubscriptionHistory(
     customerUuid: string,
     query: SubscriptionHistoryQueryDto,
-  ): Promise<SubscriptionHistoryResponseDto> {
+  ): Promise<SubscriptionHistoryResponse> {
     const page = query?.page ?? 1;
     const limit = query?.limit ?? 10;
     const cacheFilters: Record<string, any> = {
@@ -258,7 +258,7 @@ export class PaymentsService {
           } satisfies SubscriptionHistoryItemDto;
         });
 
-        return new SubscriptionHistoryResponseDto(items, total, page, limit);
+        return new SubscriptionHistoryResponse(items, total, page, limit);
       },
     );
   }

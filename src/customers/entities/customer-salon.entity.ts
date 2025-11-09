@@ -23,7 +23,7 @@ export enum CUSTOMER_SALON_ROLE {
 
 @Entity(CUSTOMER_SALON_TABLE_NAME)
 export class CustomerSalon {
-  @ApiProperty({ description: 'Customer Salon relationship ID' })
+  @ApiProperty({ description: 'Customer Salon relationship UUID' })
   @PrimaryGeneratedColumn('uuid')
   uuid: string;
 

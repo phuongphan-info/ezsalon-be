@@ -2,6 +2,45 @@ import { ApiProperty, ApiHideProperty } from '@nestjs/swagger';
 import { IsEmail, IsNotEmpty, IsOptional, IsString, IsDateString, IsEnum, IsUUID, MinLength, Matches, IsBoolean } from 'class-validator';
 import { CUSTOMER_STATUS } from '../entities/customer.entity';
 import { CUSTOMER_SALON_ROLE } from '../entities/customer-salon.entity';
+import { PaginationDto } from 'src/common/dto/pagination.dto';
+
+export class CustomerQueryDto extends PaginationDto {
+  @ApiProperty({ description: 'Salon UUID', required: false })
+  @IsUUID()
+  @IsOptional()
+  salonUuid?: string;
+
+  @ApiProperty({ description: 'Customer UUID', required: false })
+  @IsUUID()
+  @IsOptional()
+  customerUuid?: string;
+
+  @ApiProperty({ description: 'User UUID', required: false })
+  @IsUUID()
+  @IsOptional()
+  userUuid?: string;
+
+  @ApiProperty({ description: 'List of Roles', required: false })
+  @IsUUID()
+  @IsOptional()
+  roles?: string[];
+
+  @ApiProperty({ description: 'Created By UUID', required: false })
+  @IsUUID()
+  @IsOptional()
+  createdByUuid?: string;
+
+  @ApiProperty({
+    description: 'Account status',
+    enum: [CUSTOMER_STATUS.ACTIVED, CUSTOMER_STATUS.INACTIVED, CUSTOMER_STATUS.PENDING, CUSTOMER_STATUS.BLOCKED],
+    example: CUSTOMER_STATUS.ACTIVED,
+  })
+  @IsOptional()
+  status?: string;
+
+  @IsOptional()
+  search?: string;
+}
 
 export class CreateCustomerDefaultDto {
   @ApiProperty({ description: 'Email address' })
@@ -69,7 +108,7 @@ export class CreateCustomerDefaultDto {
   createdByUserUuid?: string;
 }
 
-export class CreateCustomerDto extends CreateCustomerDefaultDto {
+export class RegisterCustomerDto extends CreateCustomerDefaultDto {
   @ApiHideProperty()
   @IsUUID()
   @IsOptional()
@@ -84,6 +123,27 @@ export class CreateCustomerDto extends CreateCustomerDefaultDto {
     description: 'Customer role in this salon', 
     enum: CUSTOMER_SALON_ROLE,
     required: false 
+  })
+  @IsEnum(CUSTOMER_SALON_ROLE)
+  @IsOptional()
+  roleName?: string;
+}
+
+export class CreateCustomerDto extends CreateCustomerDefaultDto {
+  @ApiHideProperty()
+  @IsUUID()
+  @IsOptional()
+  createdByUuid?: string;
+
+  @ApiHideProperty()
+  @IsEnum(CUSTOMER_STATUS)
+  @IsOptional()
+  status?: string;
+
+  @ApiProperty({ 
+    description: 'Customer role in this salon', 
+    enum: CUSTOMER_SALON_ROLE,
+    required: true 
   })
   @IsEnum(CUSTOMER_SALON_ROLE)
   roleName: string;
@@ -148,6 +208,38 @@ export class UpdateCustomerDto extends UpdateCustomerDefaultDto {
   @IsEnum(CUSTOMER_SALON_ROLE)
   @IsOptional()
   roleName?: string;
+}
+
+export class UpdateCurrentCustomerDto {
+  @ApiProperty({ description: 'Full name', required: false })
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @ApiProperty({ description: 'Date of birth (YYYY-MM-DD)', required: false })
+  @IsDateString()
+  @IsOptional()
+  dateOfBirth?: string;
+
+  @ApiProperty({ description: 'Gender', required: false })
+  @IsString()
+  @IsOptional()
+  gender?: string;
+
+  @ApiProperty({ description: 'Address', required: false })
+  @IsString()
+  @IsOptional()
+  address?: string;
+
+  @ApiProperty({ description: 'Profile avatar URL', required: false })
+  @IsString()
+  @IsOptional()
+  avatar?: string;
+
+  @ApiProperty({ description: 'Notes about the customer', required: false })
+  @IsString()
+  @IsOptional()
+  notes?: string;
 }
 
 export class CustomerLoginDto {

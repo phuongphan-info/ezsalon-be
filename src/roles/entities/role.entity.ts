@@ -23,7 +23,7 @@ export enum ROLE {
 
 @Entity(ROLE_TABLE_NAME)
 export class Role {
-  @ApiProperty({ description: 'Role ID' })
+  @ApiProperty({ description: 'Role UUID' })
   @PrimaryGeneratedColumn('uuid')
   uuid: string;
 

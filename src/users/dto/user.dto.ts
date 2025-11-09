@@ -1,9 +1,31 @@
 import { ApiProperty, PartialType } from '@nestjs/swagger';
-import { IsEmail, IsString, MinLength, IsOptional } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsOptional, IsUUID } from 'class-validator';
 import { ROLE } from 'src/roles/entities/role.entity';
-import { Expose } from 'class-transformer';
-import { Role } from '../../roles/entities/role.entity';
-import { User } from '../entities/user.entity';
+import { USER } from '../entities/user.entity';
+import { PaginationDto } from 'src/common/dto/pagination.dto';
+
+export class UserQueryDto extends PaginationDto {
+  @ApiProperty({ description: 'Role UUID', required: false })
+  @IsUUID()
+  @IsOptional()
+  roleUuid?: string;
+
+  @ApiProperty({ description: 'Created By UUID', required: false })
+  @IsUUID()
+  @IsOptional()
+  createdByUuid?: string;
+
+  @ApiProperty({
+    description: 'Account status',
+    enum: [USER.STATUS_ACTIVED, USER.STATUS_INACTIVED, USER.STATUS_PENDING],
+    example: USER.STATUS_ACTIVED,
+  })
+  @IsOptional()
+  status?: string;
+
+  @IsOptional()
+  search?: string;
+}
 
 export class CreateUserDto {
   @ApiProperty({ description: 'Email address', example: 'user@example.com' })
@@ -84,67 +106,4 @@ export class UpdateUserDto extends PartialType(CreateUserDto) {
   @IsOptional()
   @IsString()
   role?: string;
-}
-
-export class UserResponseDto {
-  @ApiProperty({ description: 'User ID' })
-  @Expose()
-  uuid: string;
-
-  @ApiProperty({ description: 'Email address' })
-  @Expose()
-  email: string;
-
-  @ApiProperty({ description: 'Full name' })
-  @Expose()
-  name: string;
-
-  @ApiProperty({ description: 'Phone number' })
-  @Expose()
-  phone: string;
-
-  @ApiProperty({ description: 'User role', type: () => Role })
-  @Expose()
-  role: Role;
-
-  @ApiProperty({ description: 'Profile avatar URL' })
-  @Expose()
-  avatar: string;
-
-  @ApiProperty({
-    description: 'Account status',
-    enum: ['ACTIVED', 'INACTIVED', 'PENDING'],
-    example: 'ACTIVED',
-  })
-  @Expose()
-  status: string;
-
-  @ApiProperty({
-    description: 'User who created this user',
-    type: () => UserResponseDto,
-    required: false,
-  })
-  @Expose()
-  createdBy?: UserResponseDto;
-
-  @ApiProperty({ description: 'Creation date' })
-  @Expose()
-  createdAt: Date;
-
-  @ApiProperty({ description: 'Last update date' })
-  @Expose()
-  updatedAt: Date;
-
-  constructor(user: User) {
-    this.uuid = user.uuid;
-    this.email = user.email;
-    this.name = user.name;
-    this.phone = user.phone;
-    this.role = user.role;
-    this.avatar = user.avatar;
-    this.status = user.status;
-    this.createdBy = user.createdBy ? new UserResponseDto(user.createdBy) : undefined;
-    this.createdAt = user.createdAt;
-    this.updatedAt = user.updatedAt;
-  }
 }

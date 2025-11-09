@@ -6,6 +6,8 @@ import { UsersService } from '../users/users.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { RolesService } from '../roles/services/roles.service';
+import { UserLoginResponse, UserProfileResponse, UserResponse } from './dto/auth.response';
+import { plainToInstance } from 'class-transformer';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -18,25 +20,26 @@ export class AuthController {
 
   @Post('login')
   @ApiOperation({ summary: 'Login user' })
-  @ApiResponse({ status: 200, description: 'User logged in successfully' })
+  @ApiResponse({ status: 200, description: 'User logged in successfully', type: UserLoginResponse })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
-  async login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+  async login(@Body() loginDto: LoginDto): Promise<UserLoginResponse> {
+    const { accessToken, user } = await this.authService.login(loginDto);
+    return {
+      accessToken,
+      user: plainToInstance(UserResponse, user, { excludeExtraneousValues: true })
+    };
   }
 
-  @Get('me')
+  @Get('profile')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get current user info and permissions' })
-  @ApiResponse({ status: 200, description: 'User info and permissions retrieved' })
-  async getMe(@CurrentUser() currentUser: any) {
+  @ApiResponse({ status: 200, description: 'User info and permissions retrieved', type: UserProfileResponse })
+  async getMe(@CurrentUser() currentUser: any): Promise<UserProfileResponse> {
     const user = await this.usersService.findOne(currentUser.userId);
     const permissions = await this.rolesService.getUserPermissions(currentUser.userId);
-    
-    const { password: _, ...userWithoutPassword } = user;
-    
     return {
-      user: userWithoutPassword,
+      user: plainToInstance(UserResponse, user, { excludeExtraneousValues: true }),
       permissions: permissions.map(p => p.name),
     };
   }

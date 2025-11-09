@@ -699,4 +699,53 @@ describe('Customers By Business Owner E2E', () => {
       expect(customerUuids).not.toContain(businessOwner1.uuid);
     });
   });
+
+  describe('SELF-UPDATE - Current customer profile update', () => {
+    it('Logged-in customer can update own allowed fields and restricted fields remain unchanged', async () => {
+      // Fetch original profile
+      const originalProfileRes = await request(app.getHttpServer())
+        .get('/customers/profile')
+        .set('Authorization', `Bearer ${businessOwner1Token}`)
+        .expect(200);
+
+      const original = originalProfileRes.body;
+
+      // Attempt to update allowed + restricted fields
+      const updateRes = await request(app.getHttpServer())
+        .patch('/customers/profile')
+        .set('Authorization', `Bearer ${businessOwner1Token}`)
+        .send({
+          name: 'Business Owner 1 Updated',
+          address: 'New Address 123',
+          notes: 'New notes',
+          // Restricted fields should be ignored
+          phone: '+841234567890',
+          email: generateUniqueEmail(),
+          password: 'newpassword123',
+          status: CUSTOMER_STATUS.BLOCKED,
+          isOwner: false
+        })
+        .expect(200);
+
+      // Verify allowed fields changed
+      expect(updateRes.body.name).toBe('Business Owner 1 Updated');
+      expect(updateRes.body.address).toBe('New Address 123');
+      expect(updateRes.body.notes).toBe('New notes');
+
+      // Fetch again to verify restricted fields remain same
+      const verifyRes = await request(app.getHttpServer())
+        .get('/customers/profile')
+        .set('Authorization', `Bearer ${businessOwner1Token}`)
+        .expect(200);
+
+      const verified = verifyRes.body;
+      expect(verified.email).toBe(original.email); // email unchanged
+      expect(verified.status).toBe(original.status); // status unchanged
+      expect(verified.isOwner).toBe(true); // isOwner should remain true
+      // phone may or may not exist originally; ensure not updated to new value if original different
+      if (original.phone) {
+        expect(verified.phone).toBe(original.phone);
+      }
+    });
+  });
 });

@@ -296,6 +296,15 @@ async function seedPermissionsAndRoles(
 
     // We need to handle foreign key constraints properly
     // First, find and remove all users that reference roles
+    // Break self-referential created_by_uuid foreign key references to allow deletion
+    // This avoids ER_ROW_IS_REFERENCED_2 errors when a user is the creator of other users.
+    await userRepository
+      .createQueryBuilder()
+      .update(User)
+      .set({ createdBy: null })
+      .where('created_by_uuid IS NOT NULL')
+      .execute();
+
     const existingUsers = await userRepository.find();
     if (existingUsers.length > 0) {
       await userRepository.remove(existingUsers);

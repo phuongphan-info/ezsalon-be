@@ -1,4 +1,3 @@
-import { ApiProperty } from '@nestjs/swagger';
 import {
   Column,
   CreateDateColumn,
@@ -29,69 +28,60 @@ export enum BILLING_INTERVAL {
   YEAR = 'year',
 }
 
-@Index('IDX_plans_name_interval_count', ['name', 'billingInterval', 'billingIntervalCount'], {
+@Index(['name', 'billingInterval', 'billingIntervalCount'], {
   unique: true,
 })
 @Entity(PLAN_TABLE_NAME)
 export class Plan {
-  @ApiProperty({ description: 'Plan ID' })
+  constructor(partial?: Partial<Plan>) {
+    if (partial) {
+      Object.assign(this, partial);
+    }
+  }
+
   @PrimaryGeneratedColumn('uuid')
   uuid: string;
 
-  @ApiProperty({ description: 'Plan name' })
   @Column({ name: 'plan_name' })
   name: string;
 
-  @ApiProperty({ description: 'Plan description' })
   @Column({ type: 'text', nullable: true, name: 'description' })
   description?: string;
 
-  @ApiProperty({ description: 'Plan status', enum: PLAN_STATUS })
   @Column({ type: 'enum', enum: PLAN_STATUS, default: PLAN_STATUS.DRAFT, name: 'status' })
   status: PLAN_STATUS;
 
-  @ApiProperty({ description: 'Plan type', enum: PLAN_TYPE })
   @Column({ type: 'enum', enum: PLAN_TYPE, default: PLAN_TYPE.SUBSCRIPTION, name: 'type' })
   type: PLAN_TYPE;
 
-  @ApiProperty({ description: 'Price in cents (e.g., 1999 for $19.99)' })
   @Column({ type: 'int', name: 'price_cents' })
   priceCents: number;
 
-  @ApiProperty({ description: 'Currency code (e.g., USD, EUR)' })
   @Column({ length: 3, default: 'USD', name: 'currency' })
   currency: string;
 
-  @ApiProperty({ description: 'Billing interval for subscription', enum: BILLING_INTERVAL, required: false })
   @Column({ type: 'enum', enum: BILLING_INTERVAL, default: BILLING_INTERVAL.MONTH, name: 'billing_interval' })
   billingInterval: BILLING_INTERVAL;
 
-  @ApiProperty({ description: 'Billing interval count (e.g., 1 for every month, 3 for every 3 months)' })
   @Column({ type: 'int', default: 1, name: 'billing_interval_count' })
   billingIntervalCount: number;
 
-  @ApiProperty({ description: 'Stripe plan ID' })
   @Column({ nullable: true, name: 'stripe_plan_id' })
   stripePlanId?: string;
 
-  @ApiProperty({ description: 'Stripe price ID' })
   @Column({ nullable: true, name: 'stripe_price_id' })
   stripePriceId?: string;
 
-  @ApiProperty({ description: 'Display order for sorting' })
   @Column({ type: 'int', default: 0, name: 'display_order' })
   displayOrder: number;
 
-  @ApiProperty({ description: 'Trial period in days (0 for no trial)' })
   @Column({ type: 'int', default: 7, name: 'trial_period_days' })
   trialPeriodDays: number;
 
-  @ApiProperty({ description: 'User who created this plan', type: () => User })
   @ManyToOne(() => User, { nullable: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'created_by_uuid' })
   createdBy?: User;
 
-  @ApiProperty({ description: 'UUID of the user who created this plan' })
   @Column({ nullable: true, name: 'created_by_uuid' })
   createdByUuid?: string;
 

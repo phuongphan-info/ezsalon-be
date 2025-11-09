@@ -111,11 +111,10 @@ export class CacheService {
   async caching<T>(
       tableName: string,
       filters: string | { [key: string]: any },
-      callback: () => Promise<T>
+      callback: () => Promise<T>,
+      cacheCallback?: (data: T) => Promise<T>,
   ): Promise<T> {
-    // Check if cache should be skipped based on headers
-    if (headersStore.shouldSkipCache()) {
-      // Skip caching entirely, just execute callback and return result
+    if (headersStore.shouldSkipCache() || (typeof filters !== 'string' && (filters as any)?.isCache === false)) {
       console.warn('Skipping cache due to headers configuration', tableName, filters);
       return await callback();
     }
@@ -124,19 +123,22 @@ export class CacheService {
     const cached = await this.hget<T>(tableName, filterKey);
     
     if (cached !== undefined && cached !== null) {
+      if (typeof cacheCallback === 'function') {
+        return await cacheCallback(cached);
+      }
       return cached as T;
     }
     
     try {
-        const result = await callback();
-        await this.hset(tableName, filterKey, result);
-        return result;
+      const result = await callback();
+      await this.hset(tableName, filterKey, result);
+      return result;
     } catch (error) {
-        const cachedResult = await this.hget<T>(tableName, filterKey);
-        if (cachedResult !== undefined) {
-            return cachedResult;
-        }
-        throw error;
+      const cachedResult = await this.hget<T>(tableName, filterKey);
+      if (cachedResult !== undefined) {
+          return cachedResult;
+      }
+      throw error;
     }
   }
 

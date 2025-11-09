@@ -23,12 +23,12 @@ export enum SOCIAL_PROVIDER {
 
 @Entity(SOCIAL_ACCOUNT_TABLE_NAME)
 export class SocialAccount {
-  @ApiProperty({ description: 'Social Account ID' })
+  @ApiProperty({ description: 'Social Account UUID' })
   @Expose()
   @PrimaryGeneratedColumn('uuid')
   uuid: string;
 
-  @ApiProperty({ description: 'Social provider ID' })
+  @ApiProperty({ description: 'Social provider UUID' })
   @Expose()
   @Column({ name: 'social_uuid' })
   socialUuid: string;

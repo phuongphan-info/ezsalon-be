@@ -1,9 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsUUID, Matches, IsOptional, IsEnum, IsDateString } from 'class-validator';
-import { PaginatedResponse, PaginationDto } from 'src/common/dto/pagination.dto';
-import { PAYMENT_STATUS } from './entities/payment.entity';
-import { SUBSCRIPTION_STATUS } from './entities/subscription.entity';
-import { PLAN_STATUS, PLAN_TYPE, BILLING_INTERVAL } from '../plans/entities/plan.entity';
+import { PaginationDto } from 'src/common/dto/pagination.dto';
+import { PAYMENT_STATUS } from '../entities/payment.entity';
+import { SUBSCRIPTION_STATUS } from '../entities/subscription.entity';
+import { PLAN_STATUS, PLAN_TYPE, BILLING_INTERVAL } from '../../plans/entities/plan.entity';
+import { PaginatedResponse } from 'src/common/dto/pagination.response';
 
 export class CreateCheckoutSessionDto {
   @ApiProperty({ description: 'Plan UUID from your plans catalog' })
@@ -79,7 +80,7 @@ export class PaymentHistoryItemDto {
   subscription?: SubscriptionSummaryDto | null;
 }
 
-export class PaymentHistoryResponseDto extends PaginatedResponse<PaymentHistoryItemDto> {
+export class PaymentHistoryResponse extends PaginatedResponse<PaymentHistoryItemDto> {
   @ApiProperty({ type: [PaymentHistoryItemDto] })
   declare data: PaymentHistoryItemDto[];
 
@@ -195,7 +196,7 @@ export class SubscriptionHistoryItemDto {
   plan?: SubscriptionPlanSummaryDto | null;
 }
 
-export class SubscriptionHistoryResponseDto extends PaginatedResponse<SubscriptionHistoryItemDto> {
+export class SubscriptionHistoryResponse extends PaginatedResponse<SubscriptionHistoryItemDto> {
   @ApiProperty({ type: [SubscriptionHistoryItemDto] })
   declare data: SubscriptionHistoryItemDto[];
 
